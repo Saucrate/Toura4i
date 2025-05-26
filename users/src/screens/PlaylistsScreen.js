@@ -13,14 +13,74 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useAudio } from '../context/AudioContext';
+import api from '../services/api';
 
 const { width, height } = Dimensions.get('window');
+
+const categories = [
+  {
+    id: 'historical',
+    title: 'الأماكن التاريخية',
+    icon: 'location',
+    iconFamily: 'Ionicons',
+    screen: 'HistoricalPlaces',
+  },
+  {
+    id: '2',
+    title: 'القصائد',
+    icon: 'book',
+    iconFamily: 'Ionicons',
+    screen: 'Poems',
+  },
+  {
+    id: '3',
+    title: 'الألبومات',
+    icon: 'albums',
+    iconFamily: 'Ionicons',
+    screen: 'Albums',
+  },
+  {
+    id: '4',
+    title: 'الصور',
+    icon: 'images',
+    iconFamily: 'Ionicons',
+    screen: 'Photos',
+  },
+  {
+    id: '5',
+    title: 'الفيديوهات',
+    icon: 'videocam',
+    iconFamily: 'Ionicons',
+    screen: 'Videos',
+  },
+  {
+    id: '6',
+    title: 'التسجيلات الصوتية',
+    icon: 'musical-notes',
+    iconFamily: 'Ionicons',
+    screen: 'AudioRecordings',
+  },
+];
+
+const renderIcon = (iconName, family) => {
+  switch (family) {
+    case 'Ionicons':
+      return <Ionicons name={iconName} size={32} color="#f2f2d3" />;
+    case 'MaterialIcons':
+      return <MaterialIcons name={iconName} size={32} color="#f2f2d3" />;
+    default:
+      return null;
+  }
+};
 
 const PlaylistsScreen = ({ navigation, route }) => {
   const { playlists, createPlaylist, addToPlaylist } = useAudio();
   const [modalVisible, setModalVisible] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const { addTrack, onReturn } = route.params || {};
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleCreatePlaylist = async () => {
     if (newPlaylistName.trim()) {
@@ -43,6 +103,47 @@ const PlaylistsScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleCategoryPress = (category) => {
+    if (category.id === 'historical') {
+      navigation.navigate('HistoricalPlaces', { showSaved: true });
+    } else if (category.id === '2') {
+      navigation.navigate('Poems', { showSaved: true });
+    } else if (category.id === '3') {
+      navigation.navigate('Albums', { showSaved: true });
+    } else if (category.id === '4') {
+      navigation.navigate('Photos', { showSaved: true });
+    } else if (category.id === '5') {
+      navigation.navigate('Videos', { showSaved: true });
+    } else if (category.id === '6') {
+      navigation.navigate('AudioRecordings', { showSaved: true });
+    } else {
+      navigation.navigate(category.screen);
+    }
+  };
+
+  const loadPlaylists = async () => {
+    try {
+      setError(null);
+      const response = await api.get('/api/playlists');
+      console.log('API Response:', response.data); // Debug log
+      if (response.data && response.data.playlists) {
+        // Sadece kayıtlı albümleri filtrele
+        const savedPlaylists = response.data.playlists.filter(playlist => 
+          playlist.isSaved || (user && user.savedPlaylists && user.savedPlaylists.includes(playlist._id))
+        );
+        setPlaylists(savedPlaylists);
+      } else {
+        setPlaylists([]);
+      }
+    } catch (err) {
+      console.error('Error loading playlists:', err);
+      setError('حدث خطأ أثناء تحميل قوائم التشغيل. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#000000', '#1a1a1a']} style={styles.gradient}>
@@ -59,27 +160,24 @@ const PlaylistsScreen = ({ navigation, route }) => {
           <Text style={styles.headerTitle}>
             {addTrack ? 'اختر قائمة التشغيل' : 'قوائم التشغيل'}
           </Text>
-          {!addTrack && (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setModalVisible(true)}
-            >
-              <Ionicons name="add" size={24} color="#f2f2d3" />
-            </TouchableOpacity>
-          )}
         </View>
 
         <ScrollView style={styles.content}>
           {playlists.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="queue-music" size={80} color="#f2f2d3" />
-              <Text style={styles.emptyText}>لا توجد قوائم تشغيل</Text>
-              <TouchableOpacity 
-                style={styles.createFirstButton}
-                onPress={() => setModalVisible(true)}
-              >
-                <Text style={styles.createFirstButtonText}>إنشاء قائمة جديدة</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptyText}>اختر تصنيفًا للبدء</Text>
+              <View style={styles.categoriesGrid}>
+                {categories.map((category) => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={styles.categoryCard}
+                    onPress={() => handleCategoryPress(category)}
+                  >
+                    {renderIcon(category.icon, category.iconFamily)}
+                    <Text style={styles.categoryTitle}>{category.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           ) : (
             <View style={styles.playlistsGrid}>
@@ -106,19 +204,6 @@ const PlaylistsScreen = ({ navigation, route }) => {
             </View>
           )}
         </ScrollView>
-
-        {/* Floating Action Button */}
-        <TouchableOpacity 
-          style={styles.fab}
-          onPress={() => setModalVisible(true)}
-        >
-          <LinearGradient
-            colors={['#1a1a1a', '#000000']}
-            style={styles.fabGradient}
-          >
-            <MaterialIcons name="playlist-add" size={30} color="#f2f2d3" />
-          </LinearGradient>
-        </TouchableOpacity>
 
         {/* Create Playlist Modal */}
         <Modal
@@ -200,9 +285,6 @@ const styles = StyleSheet.create({
     color: '#f2f2d3',
   },
   backButton: {
-    padding: 10,
-  },
-  addButton: {
     padding: 10,
   },
   content: {
@@ -317,50 +399,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1a1a1a',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    elevation: 5,
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    paddingHorizontal: 10,
+    marginTop: 20,
   },
-  fabGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  categoryCard: {
+    width: width * 0.43,
+    height: 110,
+    backgroundColor: 'rgba(242, 242, 211, 0.1)',
+    borderRadius: 15,
+    marginBottom: 15,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(242, 242, 211, 0.2)',
   },
-  createFirstButton: {
-    backgroundColor: 'rgba(242, 242, 211, 0.1)',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(242, 242, 211, 0.2)',
-  },
-  createFirstButtonText: {
+  categoryTitle: {
     color: '#f2f2d3',
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  successAlert: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-    padding: 20,
-    borderRadius: 15,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(242, 242, 211, 0.2)',
-  },
-  successAlertText: {
-    color: '#f2f2d3',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'right',
+    marginTop: 10,
+    fontWeight: '600',
   },
 });
 

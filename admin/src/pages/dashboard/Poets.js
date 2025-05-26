@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -10,6 +10,8 @@ import { Button, IconButton } from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import { Form, FormGroup, Input, TextArea } from '../../components/common/Form';
 import { useNotification } from '../../components/common/Notification';
+import poetService from '../../services/poetService';
+import Loading from '../../components/common/Loading';
 
 const Container = styled.div`
   display: flex;
@@ -430,99 +432,131 @@ const PoetCard = styled(motion.div)`
 const Poets = () => {
   const theme = useTheme();
   const { show } = useNotification();
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingPoet, setEditingPoet] = useState(null);
   const [imageFile, setImageFile] = useState(null);
-  const [poets, setPoets] = useState([
-    {
-      id: '1',
-      name: 'أحمد شوقي',
-      image: '/photo1.jpg',
-      period: '1868 - 1932',
-      bio: 'أمير الشعراء، شاعر مصري كبير ورائد الشعر العربي الحديث',
-      location: 'القاهرة، مصر',
-      poems: 150,
-      awards: 12,
-      followers: 5000
-    },
-    // Add more poets...
-  ]);
+  const [poets, setPoets] = useState([]);
 
-  const stats = [
-    {
-      label: 'إجمالي الشعراء',
-      value: poets.length,
-      icon: <FiBook />,
-      color: theme.colors.primary
-    },
-    {
-      label: 'إجمالي القصائد',
-      value: poets.reduce((sum, poet) => sum + poet.poems, 0),
-      icon: <FiBookOpen />,
-      color: theme.colors.success
-    },
-    {
-      label: 'إجمالي الجوائز',
-      value: poets.reduce((sum, poet) => sum + poet.awards, 0),
-      icon: <FiAward />,
-      color: theme.colors.warning
-    },
-    {
-      label: 'إجمالي المتابعين',
-      value: poets.reduce((sum, poet) => sum + poet.followers, 0),
-      icon: <FiHeart />,
-      color: theme.colors.error
+  // Fetch poets on component mount
+  useEffect(() => {
+    fetchPoets();
+  }, []);
+
+  const fetchPoets = async () => {
+    try {
+      setLoading(true);
+      const data = await poetService.getAllPoets();
+      console.log('Fetched poets:', data); // Debug log
+      setPoets(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error in fetchPoets:', error);
+      show('حدث خطأ أثناء جلب بيانات الشعراء', 'error');
+      setPoets([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageFile(reader.result);
-      };
-      reader.readAsDataURL(file);
+      setImageFile(file);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    const formData = new FormData();
     
     try {
-      const newPoet = {
-        id: editingPoet?.id || Date.now().toString(),
-        name: formData.get('name'),
-        period: formData.get('period'),
-        bio: formData.get('bio'),
-        location: formData.get('location'),
-        website: formData.get('website'),
-        poems: parseInt(formData.get('poems')) || 0,
-        awards: parseInt(formData.get('awards')) || 0,
-        followers: editingPoet?.followers || 0,
-        image: imageFile || editingPoet?.image || '/photo1.jpg'
-      };
+      // Add text fields
+      formData.append('name', e.target.name.value);
+      formData.append('bio', e.target.bio.value);
+      formData.append('period', e.target.period.value);
+      formData.append('location', e.target.location.value);
+      formData.append('website', e.target.website.value);
+      formData.append('awards', e.target.awards.value || 0);
+
+      // Add image file if selected
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
+      console.log('Submitting form data:', {
+        name: e.target.name.value,
+        bio: e.target.bio.value,
+        period: e.target.period.value,
+        location: e.target.location.value,
+        website: e.target.website.value,
+        awards: e.target.awards.value,
+        hasImage: !!imageFile
+      });
 
       if (editingPoet) {
-        setPoets(prev => prev.map(p => p.id === editingPoet.id ? newPoet : p));
+        await poetService.updatePoet(editingPoet._id, formData);
         show('تم تحديث بيانات الشاعر بنجاح', 'success');
       } else {
-        setPoets(prev => [...prev, newPoet]);
+        await poetService.createPoet(formData);
         show('تم إضافة الشاعر بنجاح', 'success');
       }
 
       setIsAddModalOpen(false);
       setEditingPoet(null);
       setImageFile(null);
+      fetchPoets(); // Refresh the poets list
     } catch (error) {
+      console.error('Error creating/updating poet:', error);
       show('حدث خطأ أثناء حفظ البيانات', 'error');
     }
   };
 
+  const handleDelete = async (poet) => {
+    if (window.confirm('هل أنت متأكد من حذف هذا الشاعر؟')) {
+      try {
+        await poetService.deletePoet(poet._id);
+        show('تم حذف الشاعر بنجاح', 'success');
+        fetchPoets(); // Refresh the poets list
+      } catch (error) {
+        show('حدث خطأ أثناء حذف الشاعر', 'error');
+      }
+    }
+  };
+
+  const stats = [
+    {
+      label: 'إجمالي الشعراء',
+      value: Array.isArray(poets) ? poets.length : 0,
+      icon: <FiBook />,
+      color: theme.colors.primary
+    },
+    {
+      label: 'إجمالي القصائد',
+      value: Array.isArray(poets) ? poets.reduce((sum, poet) => sum + (poet.poems?.length || 0), 0) : 0,
+      icon: <FiBookOpen />,
+      color: theme.colors.success
+    },
+    {
+      label: 'إجمالي الجوائز',
+      value: Array.isArray(poets) ? poets.reduce((sum, poet) => sum + (poet.awards || 0), 0) : 0,
+      icon: <FiAward />,
+      color: theme.colors.warning
+    },
+    {
+      label: 'إجمالي المتابعين',
+      value: Array.isArray(poets) ? poets.reduce((sum, poet) => sum + (poet.followers || 0), 0) : 0,
+      icon: <FiHeart />,
+      color: theme.colors.error
+    }
+  ];
+
   return (
     <Container>
+      {loading ? (
+        <Loading fullScreen />
+      ) : (
+        <>
       <PageHeader>
         <div className="header-content">
           <h1>الشعراء</h1>
@@ -577,7 +611,7 @@ const Poets = () => {
             >
               <div className="cover">
                 <div className="avatar">
-                  <img src={poet.image} alt={poet.name} />
+                      <img src={poet.image || '/photo1.jpg'} alt={poet.name} />
                 </div>
               </div>
               <div className="content">
@@ -589,15 +623,15 @@ const Poets = () => {
                 <p className="bio">{poet.bio}</p>
                 <div className="stats">
                   <div className="stat">
-                    <div className="value">{poet.poems}</div>
+                        <div className="value">{poet.poems?.length || 0}</div>
                     <div className="label">قصيدة</div>
                   </div>
                   <div className="stat">
-                    <div className="value">{poet.awards}</div>
+                        <div className="value">{poet.awards || 0}</div>
                     <div className="label">جائزة</div>
                   </div>
                   <div className="stat">
-                    <div className="value">{poet.followers}</div>
+                        <div className="value">{poet.followers || 0}</div>
                     <div className="label">متابع</div>
                   </div>
                 </div>
@@ -606,7 +640,7 @@ const Poets = () => {
                 <IconButton onClick={() => setEditingPoet(poet)}>
                   <FiEdit2 />
                 </IconButton>
-                <IconButton>
+                    <IconButton onClick={() => handleDelete(poet)}>
                   <FiTrash2 />
                 </IconButton>
               </div>
@@ -625,7 +659,7 @@ const Poets = () => {
         <StyledForm onSubmit={handleSubmit}>
           <div className="avatar-upload">
             <div className="avatar-preview">
-              <img src={imageFile || editingPoet?.image || '/photo1.jpg'} alt="صورة الشاعر" />
+                  <img src={imageFile ? URL.createObjectURL(imageFile) : editingPoet?.image || '/photo1.jpg'} alt="صورة الشاعر" />
             </div>
             <label className="upload-overlay" htmlFor="avatar-input">
               <FiUpload />
@@ -668,6 +702,7 @@ const Poets = () => {
               defaultValue={editingPoet?.bio}
               placeholder="اكتب نبذة مختصرة عن الشاعر..."
               rows={4}
+                  required
             />
           </FormGroup>
 
@@ -694,21 +729,11 @@ const Poets = () => {
 
           <div className="form-grid">
             <FormGroup>
-              <label>عدد القصائد</label>
-              <Input
-                name="poems"
-                type="number"
-                defaultValue={editingPoet?.poems}
-                min="0"
-              />
-            </FormGroup>
-
-            <FormGroup>
               <label>عدد الجوائز</label>
               <Input
                 name="awards"
                 type="number"
-                defaultValue={editingPoet?.awards}
+                    defaultValue={editingPoet?.awards || 0}
                 min="0"
               />
             </FormGroup>
@@ -727,6 +752,8 @@ const Poets = () => {
           </div>
         </StyledForm>
       </Modal>
+        </>
+      )}
     </Container>
   );
 };

@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { 
-  FiPlus, FiSearch, FiEdit2, FiTrash2, 
-  FiUser, FiPhone, FiMail
+  FiSearch, FiTrash2, FiBell, FiCheck, FiX,
+  FiMail, FiPhone, FiUser, FiLock, FiUnlock
 } from 'react-icons/fi';
 import { Button, IconButton } from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
-import { Form, FormGroup, Input } from '../../components/common/Form';
+import { Form, FormGroup, Input, TextArea } from '../../components/common/Form';
 import { useNotification } from '../../components/common/Notification';
+import userService from '../../services/userService';
 
 const Container = styled.div`
   padding: 2rem;
@@ -67,6 +68,23 @@ const SearchBar = styled.div`
   }
 `;
 
+const ActionBar = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  
+  .selection-info {
+    font-size: 0.875rem;
+    color: ${({ theme }) => theme.colors.text.secondary};
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+`;
+
 const UsersGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -76,9 +94,34 @@ const UsersGrid = styled.div`
 const UserCard = styled(motion.div)`
   background: ${({ theme }) => theme.colors.background.light};
   border-radius: 20px;
-  border: 2px solid ${({ theme }) => theme.colors.border.light};
+  border: 2px solid ${({ theme, selected }) => 
+    selected ? theme.colors.accent : theme.colors.border.light};
   overflow: hidden;
   transition: all 0.3s ease;
+  position: relative;
+
+  .checkbox {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 10;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid ${({ theme }) => theme.colors.accent};
+    background: ${({ theme, selected }) => 
+      selected ? theme.colors.accent : 'transparent'};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      transform: scale(1.1);
+    }
+  }
 
   .user-header {
     padding: 1.5rem;
@@ -112,7 +155,11 @@ const UserCard = styled(motion.div)`
 
       .status {
         font-size: 0.875rem;
-        color: ${({ theme }) => theme.colors.success};
+        color: ${({ theme, blocked }) => 
+          blocked ? theme.colors.error : theme.colors.success};
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
       }
     }
 
@@ -162,174 +209,186 @@ const UserCard = styled(motion.div)`
 `;
 
 const StyledForm = styled(Form)`
-  .avatar-upload {
-    width: 120px;
-    height: 120px;
-    margin: 0 auto 2rem;
-    position: relative;
-    
-    .avatar-preview {
-      width: 100%;
-      height: 100%;
-      border-radius: 20px;
-      border: 3px solid ${({ theme }) => theme.colors.accent};
-      overflow: hidden;
-      
-      img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-    }
-
-    .upload-overlay {
-      position: absolute;
-      inset: 0;
-      background: ${({ theme }) => theme.colors.accent}20;
-      border-radius: 20px;
+  .form-footer {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      transition: all 0.2s ease;
-      cursor: pointer;
-
-      &:hover {
-        opacity: 1;
-      }
-    }
-  }
-
-  .form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    justify-content: flex-end;
     gap: 1rem;
+    margin-top: 2rem;
   }
 `;
 
 const Users = () => {
   const { show } = useNotification();
   const [search, setSearch] = useState('');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [avatarFile, setAvatarFile] = useState(null);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample data
-  const [users, setUsers] = useState([
-    {
-      id: '1',
-      name: 'محمد أحمد',
-      email: 'mohammed@example.com',
-      phone: '+966 50 123 4567',
-      avatar: '/photo1.jpg',
-      status: 'نشط'
-    },
-    // Add more users as needed
-  ]);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarFile(reader.result);
-      };
-      reader.readAsDataURL(file);
+  const fetchUsers = async () => {
+    try {
+      const data = await userService.getUsers();
+      setUsers(data);
+    } catch (error) {
+      show(error.message || 'Error fetching users', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleToggleSelect = (userId) => {
+    if (selectedUsers.includes(userId)) {
+      setSelectedUsers(prev => prev.filter(id => id !== userId));
+    } else {
+      setSelectedUsers(prev => [...prev, userId]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedUsers.length === users.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(users.map(user => user._id));
+    }
+  };
+
+  const handleSendNotification = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    
+    if (selectedUsers.length === 0) {
+      show('Please select at least one user', 'error');
+      return;
+    }
+    
+    if (!notificationMessage.trim()) {
+      show('Please enter a notification message', 'error');
+      return;
+    }
     
     try {
-      const newUser = {
-        id: editingUser?.id || Date.now().toString(),
-        name: formData.get('name'),
-        email: formData.get('email'),
-        phone: formData.get('phone'),
-        avatar: avatarFile || editingUser?.avatar || '/photo1.jpg',
-        status: 'نشط'
-      };
-
-      if (editingUser) {
-        setUsers(prev => prev.map(user => 
-          user.id === editingUser.id ? newUser : user
-        ));
-        show('تم تحديث بيانات المستخدم بنجاح', 'success');
-      } else {
-        setUsers(prev => [...prev, newUser]);
-        show('تم إضافة المستخدم بنجاح', 'success');
-      }
-
-      setIsAddModalOpen(false);
-      setEditingUser(null);
-      setAvatarFile(null);
+      await userService.sendNotification(selectedUsers, notificationMessage);
+      show('Notification sent successfully', 'success');
+      setIsNotificationModalOpen(false);
+      setNotificationMessage('');
+      setSelectedUsers([]);
     } catch (error) {
-      show('حدث خطأ أثناء حفظ البيانات', 'error');
+      show(error.message || 'Error sending notification', 'error');
     }
   };
 
-  const handleDeleteUser = (userId) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
-      setUsers(prev => prev.filter(user => user.id !== userId));
-      show('تم حذف المستخدم بنجاح', 'success');
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await userService.deleteUser(userId);
+        show('User deleted successfully', 'success');
+        setUsers(prev => prev.filter(user => user._id !== userId));
+        setSelectedUsers(prev => prev.filter(id => id !== userId));
+      } catch (error) {
+        show(error.message || 'Error deleting user', 'error');
+      }
     }
   };
+
+  const handleToggleBlock = async (userId) => {
+    try {
+      const response = await userService.toggleUserBlock(userId);
+      setUsers(prev => prev.map(user => 
+        user._id === userId ? { ...user, isActive: !user.isActive } : user
+      ));
+      show(response.message, 'success');
+    } catch (error) {
+      show(error.message || 'Error toggling user block status', 'error');
+    }
+  };
+
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(search.toLowerCase()) ||
+    user.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <Container>
       <PageHeader>
         <div className="header-content">
-          <h1>المستخدمين</h1>
-          <p>إدارة حسابات المستخدمين</p>
+          <h1>Users</h1>
+          <p>Manage user accounts</p>
         </div>
-        <Button onClick={() => setIsAddModalOpen(true)}>
-          <FiPlus />
-          إضافة مستخدم
-        </Button>
       </PageHeader>
 
       <SearchBar>
         <FiSearch />
         <input
           type="text"
-          placeholder="ابحث عن مستخدم..."
+          placeholder="Search users..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </SearchBar>
 
+      <ActionBar>
+        <div className="selection-info">
+          {selectedUsers.length > 0 
+            ? `${selectedUsers.length} users selected` 
+            : 'No users selected'}
+        </div>
+        <div className="action-buttons">
+          <Button 
+            variant="secondary" 
+            onClick={handleSelectAll}
+            disabled={users.length === 0}
+          >
+            {selectedUsers.length === users.length ? 'Deselect All' : 'Select All'}
+          </Button>
+          <Button 
+            onClick={() => setIsNotificationModalOpen(true)}
+            disabled={selectedUsers.length === 0}
+          >
+            <FiBell />
+            Send Notification
+          </Button>
+        </div>
+      </ActionBar>
+
       <UsersGrid>
-        {users
-          .filter(user => 
-            user.name.toLowerCase().includes(search.toLowerCase()) ||
-            user.email.toLowerCase().includes(search.toLowerCase())
-          )
-          .map((user, index) => (
+        {filteredUsers.map((user, index) => (
             <UserCard
-              key={user.id}
+            key={user._id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
+            selected={selectedUsers.includes(user._id)}
+          >
+            <div 
+              className="checkbox"
+              onClick={() => handleToggleSelect(user._id)}
             >
+              {selectedUsers.includes(user._id) && <FiCheck size={14} />}
+            </div>
               <div className="user-header">
                 <div className="avatar">
-                  <img src={user.avatar} alt={user.name} />
+                <img src={user.avatar || '/default-avatar.png'} alt={user.name} />
                 </div>
                 <div className="info">
                   <h3>{user.name}</h3>
-                  <div className="status">{user.status}</div>
+                <div className="status" blocked={!user.isActive}>
+                  {!user.isActive ? <FiLock size={14} /> : <FiUnlock size={14} />}
+                  {user.isActive ? 'Active' : 'Blocked'}
+                </div>
                 </div>
                 <div className="actions">
-                  <IconButton onClick={() => {
-                    setEditingUser(user);
-                    setAvatarFile(user.avatar);
-                    setIsAddModalOpen(true);
-                  }}>
-                    <FiEdit2 />
+                <IconButton onClick={() => handleToggleBlock(user._id)}>
+                  {!user.isActive ? <FiUnlock /> : <FiLock />}
                   </IconButton>
-                  <IconButton onClick={() => handleDeleteUser(user.id)}>
+                <IconButton onClick={() => handleDeleteUser(user._id)}>
                     <FiTrash2 />
                   </IconButton>
                 </div>
@@ -339,87 +398,53 @@ const Users = () => {
                   <FiMail />
                   {user.email}
                 </div>
+              {user.phone && (
                 <div className="detail">
                   <FiPhone />
                   {user.phone}
                 </div>
+              )}
               </div>
             </UserCard>
           ))}
       </UsersGrid>
 
       <Modal
-        isOpen={isAddModalOpen}
+        isOpen={isNotificationModalOpen}
         onClose={() => {
-          setIsAddModalOpen(false);
-          setEditingUser(null);
-          setAvatarFile(null);
+          setIsNotificationModalOpen(false);
+          setNotificationMessage('');
         }}
-        title={editingUser ? 'تعديل بيانات المستخدم' : 'إضافة مستخدم جديد'}
+        title="Send Notification"
       >
-        <StyledForm onSubmit={handleSubmit}>
-          <div className="avatar-upload">
-            <div className="avatar-preview">
-              <img src={avatarFile || editingUser?.avatar || '/photo1.jpg'} alt="الصورة الشخصية" />
-            </div>
-            <label className="upload-overlay" htmlFor="avatar-input">
-              <FiPlus />
-            </label>
-            <input
-              id="avatar-input"
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarChange}
-              style={{ display: 'none' }}
-            />
-          </div>
-
-          <div className="form-grid">
-            <FormGroup>
-              <label>الاسم</label>
-              <Input
-                name="name"
-                defaultValue={editingUser?.name}
-                placeholder="أدخل اسم المستخدم"
-                required
-              />
-            </FormGroup>
-
-            <FormGroup>
-              <label>البريد الإلكتروني</label>
-              <Input
-                name="email"
-                type="email"
-                defaultValue={editingUser?.email}
-                placeholder="example@email.com"
-                required
-              />
-            </FormGroup>
-          </div>
-
+        <Form onSubmit={handleSendNotification}>
           <FormGroup>
-            <label>رقم الهاتف</label>
-            <Input
-              name="phone"
-              type="tel"
-              defaultValue={editingUser?.phone}
-              placeholder="+966 50 123 4567"
+            <label>Notification Message</label>
+            <TextArea
+              value={notificationMessage}
+              onChange={(e) => setNotificationMessage(e.target.value)}
+              placeholder="Enter your notification message here..."
+              rows={5}
               required
             />
           </FormGroup>
 
           <div className="form-footer">
-            <Button type="button" variant="secondary" onClick={() => {
-              setIsAddModalOpen(false);
-              setEditingUser(null);
-            }}>
-              إلغاء
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={() => {
+                setIsNotificationModalOpen(false);
+                setNotificationMessage('');
+              }}
+            >
+              Cancel
             </Button>
             <Button type="submit" variant="primary">
-              {editingUser ? 'تحديث البيانات' : 'إضافة المستخدم'}
+              Send Notification
             </Button>
           </div>
-        </StyledForm>
+        </Form>
       </Modal>
     </Container>
   );

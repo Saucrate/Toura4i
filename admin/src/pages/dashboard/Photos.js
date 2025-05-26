@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiPlus, FiFilter, FiDownload, FiShare2, FiImage, 
   FiCalendar, FiX, FiUpload, FiZoomIn, FiGrid, FiList,
-  FiTrash2, FiEdit2, FiEye, FiHeart, FiChevronDown, FiFolder
+  FiTrash2, FiEdit2, FiEye, FiHeart, FiChevronDown, FiFolder, FiUser, FiSearch, FiChevronLeft, FiChevronRight, FiMessageSquare
 } from 'react-icons/fi';
 import { Button, IconButton } from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import { Form, Input, TextArea, Select } from '../../components/common/Form';
 import { useNotification } from '../../components/common/Notification';
+import photoService from '../../services/photoService';
+import poetService from '../../services/poetService';
 
 const Container = styled.div`
   height: 100%;
@@ -56,87 +58,235 @@ const Content = styled.div`
 
 const PhotosGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
-  padding: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
   background: ${({ theme }) => theme.colors.background.light};
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid ${({ theme }) => theme.colors.border.light};
 `;
 
 const PhotoCard = styled(motion.div)`
   position: relative;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   background: ${({ theme }) => theme.colors.background.medium};
   border: 1px solid ${({ theme }) => theme.colors.border.light};
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 
-  &::before {
-    content: '';
-    display: block;
-    padding-top: 100%;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+    border-color: ${({ theme }) => theme.colors.accent};
   }
 
-  .image-container {
+  .image-carousel {
+    position: relative;
+    width: 100%;
+    padding-top: 66.67%; // 3:2 aspect ratio
+    overflow: hidden;
+    background: ${({ theme }) => theme.colors.background.dark};
+
+    .carousel-container {
     position: absolute;
     inset: 0;
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      
+      &::-webkit-scrollbar {
+        display: none;
+      }
     
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+        scroll-snap-align: start;
+        flex: 0 0 100%;
       transition: transform 0.3s ease;
+
+        &:hover {
+          transform: scale(1.05);
+        }
     }
   }
 
-  .overlay {
+    .carousel-indicators {
     position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    padding: 1rem;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-
-    .top {
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      justify-content: flex-end;
       gap: 0.5rem;
+      z-index: 1;
+      padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
+
+      .indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.5);
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &.active {
+          background: white;
+          transform: scale(1.2);
+        }
+
+        &:hover {
+          background: white;
+          transform: scale(1.1);
+        }
+      }
     }
 
-    .bottom {
-      margin-top: auto;
+    .carousel-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.5);
       color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+    display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    opacity: 0;
+      transition: all 0.2s ease;
+      z-index: 1;
+      backdrop-filter: blur(4px);
 
-      h3 {
-        font-size: 1rem;
-        margin-bottom: 0.25rem;
+      &:hover {
+        background: rgba(0, 0, 0, 0.7);
+        transform: translateY(-50%) scale(1.1);
+      }
+
+      &.left {
+        left: 1rem;
+      }
+
+      &.right {
+        right: 1rem;
+      }
+    }
+
+    &:hover .carousel-arrow {
+      opacity: 1;
+    }
+  }
+
+  .card-content {
+    padding: 1.25rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+
+    .title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: ${({ theme }) => theme.colors.text.primary};
+      margin: 0;
+      line-height: 1.4;
       }
 
       .meta {
-        font-size: 0.875rem;
-        opacity: 0.8;
         display: flex;
-        gap: 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+
+      .meta-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.75rem;
+        background: ${({ theme }) => theme.colors.background.light};
+        border-radius: 8px;
+        border: 1px solid ${({ theme }) => theme.colors.border.light};
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: ${({ theme }) => theme.colors.accent}10;
+          border-color: ${({ theme }) => theme.colors.accent};
+        }
+
+        svg {
+          color: ${({ theme }) => theme.colors.accent};
+        }
 
         span {
           display: flex;
           align-items: center;
           gap: 0.25rem;
+          color: ${({ theme }) => theme.colors.text.secondary};
+          font-size: 0.875rem;
+        }
+
+        .count {
+          font-weight: 600;
+          color: ${({ theme }) => theme.colors.text.primary};
         }
       }
     }
-  }
 
-  &:hover {
-    .image-container img {
-      transform: scale(1.05);
+    .description {
+      color: ${({ theme }) => theme.colors.text.secondary};
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin: 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
-    .overlay {
-      opacity: 1;
+    .actions {
+      margin-top: auto;
+      display: flex;
+      gap: 0.75rem;
+      padding-top: 1rem;
+      border-top: 1px solid ${({ theme }) => theme.colors.border.light};
+
+      button {
+        flex: 1;
+        padding: 0.75rem;
+        border: none;
+        background: ${({ theme }) => theme.colors.background.light};
+        color: ${({ theme }) => theme.colors.text.secondary};
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+        font-size: 0.875rem;
+        font-weight: 500;
+
+  &:hover {
+          background: ${({ theme }) => theme.colors.accent};
+          color: white;
+          transform: translateY(-2px);
+    }
+
+        svg {
+          font-size: 1.1rem;
+        }
+      }
     }
   }
 `;
@@ -516,31 +666,250 @@ const FileInputLabel = styled.label`
   }
 `;
 
-const Photos = () => {
-  const [photos, setPhotos] = useState([
-    {
-      id: '1',
-      title: 'حفل تراثي',
-      description: 'حفل تراثي في نواكشوط مع نخبة من الشعراء والمنشدين',
-      category: 'المدح والتراث',
-      date: '2024-03-15',
-      image: '/photo1.jpg',
-    },
-  ]);
+const PersonSelector = styled.div`
+  .selected-person {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid ${({ theme }) => theme.colors.border.light};
+    border-radius: 8px;
+    cursor: pointer;
 
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      overflow: hidden;
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .info {
+      h4 {
+        margin: 0;
+        font-size: 0.875rem;
+        color: ${({ theme }) => theme.colors.text.primary};
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.75rem;
+        color: ${({ theme }) => theme.colors.text.secondary};
+      }
+    }
+
+    .select-icon {
+      margin-left: auto;
+      color: ${({ theme }) => theme.colors.text.secondary};
+    }
+  }
+`;
+
+const PersonsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+`;
+
+const PersonCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.border.light};
+  border-radius: 8px;
+  cursor: pointer;
+
+  .avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 0.875rem;
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.75rem;
+    color: ${({ theme }) => theme.colors.text.secondary};
+  }
+
+  ${({ selected }) =>
+    selected &&
+    `
+    background-color: ${({ theme }) => theme.colors.accent}10;
+  `}
+`;
+
+const SearchBar = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.light};
+
+  input {
+    flex: 1;
+    padding: 0.5rem;
+    border: none;
+    background: transparent;
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
+const ImagePreviewGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+`;
+
+const ImagePreviewItem = styled.div`
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid ${({ theme }) => theme.colors.border.light};
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .actions {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+
+    button {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+    }
+  }
+
+  &:hover .actions {
+    opacity: 1;
+  }
+
+  &.main {
+    border-color: ${({ theme }) => theme.colors.accent};
+    border-width: 2px;
+  }
+`;
+
+const Photos = () => {
+  const [photos, setPhotos] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
   const [currentPhoto, setCurrentPhoto] = useState(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState({
     category: '',
     date: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    totalPhotos: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalComments: 0
+  });
+  const [persons, setPersons] = useState([]);
+  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [isPersonSelectorOpen, setIsPersonSelectorOpen] = useState(false);
+  const [personSearch, setPersonSearch] = useState('');
+  const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [imageOrder, setImageOrder] = useState([]);
+  const [activeImageIndices, setActiveImageIndices] = useState({});
   
   const { show } = useNotification();
+
+  // Fetch photos and stats on component mount
+  useEffect(() => {
+    fetchPhotos();
+    fetchStats();
+    loadPersons();
+  }, []);
+
+  const fetchPhotos = async () => {
+    try {
+      setLoading(true);
+      const response = await photoService.getAllPhotos();
+      setPhotos(response.photos);
+    } catch (error) {
+      show('حدث خطأ أثناء جلب الصور', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const response = await photoService.getAllPhotos();
+      const totalViews = response.photos.reduce((sum, photo) => sum + (photo.views || 0), 0);
+      const totalLikes = response.photos.reduce((sum, photo) => sum + (photo.likes || 0), 0);
+      const totalComments = response.photos.reduce((sum, photo) => sum + (photo.comments?.length || 0), 0);
+      
+      setStats({
+        totalPhotos: response.photos.length,
+        totalViews,
+        totalLikes,
+        totalComments
+      });
+    } catch (error) {
+      show('حدث خطأ أثناء جلب الإحصائيات', 'error');
+    }
+  };
+
+  const loadPersons = async () => {
+    try {
+      const data = await poetService.getAllPoets();
+      setPersons(data);
+    } catch (error) {
+      show('حدث خطأ أثناء تحميل الأشخاص', 'error');
+    }
+  };
 
   const columns = [
     { key: 'title', label: 'العنوان' },
@@ -563,9 +932,20 @@ const Photos = () => {
   const filterOptions = {
     categories: [
       { id: 'all', label: 'جميع التصنيفات', count: photos.length },
-      { id: 'madh', label: 'المدح والتراث', count: 12 },
-      { id: 'poets', label: 'الشعراء والمنشدون', count: 8 },
-      { id: 'events', label: 'المناسبات', count: 5 }
+      { id: 'manuscripts', label: 'مخطوطة', count: photos.filter(p => p.category === 'manuscripts').length },
+      { id: 'instruments', label: 'الآلات الموسيقية القديمة', count: photos.filter(p => p.category === 'instruments').length },
+      { id: 'historical', label: 'الآثار التاريخية', count: photos.filter(p => p.category === 'historical').length },
+      { id: 'mosques', label: 'المساجد', count: photos.filter(p => p.category === 'mosques').length },
+      { id: 'architecture', label: 'العمارة', count: photos.filter(p => p.category === 'architecture').length },
+      { id: 'artifacts', label: 'القطع الأثرية', count: photos.filter(p => p.category === 'artifacts').length },
+      { id: 'calligraphy', label: 'الخط العربي', count: photos.filter(p => p.category === 'calligraphy').length },
+      { id: 'cultural', label: 'التراث الثقافي', count: photos.filter(p => p.category === 'cultural').length },
+      { id: 'events', label: 'المناسبات', count: photos.filter(p => p.category === 'events').length },
+      { id: 'people', label: 'الشخصيات', count: photos.filter(p => p.category === 'people').length },
+      { id: 'landmarks', label: 'المعالم', count: photos.filter(p => p.category === 'landmarks').length },
+      { id: 'traditions', label: 'التقاليد', count: photos.filter(p => p.category === 'traditions').length },
+      { id: 'ceremonies', label: 'الاحتفالات', count: photos.filter(p => p.category === 'ceremonies').length },
+      { id: 'other', label: 'أخرى', count: photos.filter(p => p.category === 'other').length }
     ],
     date: [
       { id: 'all', label: 'كل الوقت', icon: <FiCalendar /> },
@@ -578,79 +958,145 @@ const Photos = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    try {
     const formData = new FormData(e.target);
     
-    try {
-      const newPhoto = {
-        id: Date.now().toString(),
-        title: formData.get('title'),
-        description: formData.get('description'),
-        category: formData.get('category'),
-        date: formData.get('date'),
-        image: imageFile,
-      };
+      // Add all image files
+      if (imageFiles.length > 0) {
+        imageFiles.forEach(({ file }) => {
+          formData.append('images', file);
+        });
+      }
 
+      // Add images to delete if any
+      if (imagesToDelete.length > 0) {
+        formData.append('deleteImages', JSON.stringify(imagesToDelete));
+      }
+
+      // Add image order if changed
+      if (imageOrder.length > 0) {
+        formData.append('imageOrder', JSON.stringify(imageOrder));
+    }
+
+    if (selectedPerson) {
+      formData.append('person', selectedPerson._id);
+    }
+    
+      // Log form data before submission
+      console.log('Submitting form data:');
+      for (let pair of formData.entries()) {
+        console.log(pair[0], pair[1]);
+      }
+      
+      let response;
       if (editingPhoto) {
-        setPhotos(prev => prev.map(p => p.id === editingPhoto.id ? newPhoto : p));
+        response = await photoService.updatePhoto(editingPhoto._id, formData);
         show('تم تحديث الصورة بنجاح', 'success');
       } else {
-        setPhotos(prev => [...prev, newPhoto]);
+        response = await photoService.createPhoto(formData);
         show('تمت إضافة الصورة بنجاح', 'success');
       }
 
+      console.log('Server response:', response);
+
+      // Reset form and state
       setIsAddModalOpen(false);
       setEditingPhoto(null);
-      setImageFile(null);
+      setImageFiles([]);
+      setImagesToDelete([]);
+      setImageOrder([]);
+      setSelectedPerson(null);
+      
+      // Refresh photos list
+      await fetchPhotos();
     } catch (error) {
-      show('حدث خطأ أثناء حفظ البيانات', 'error');
+      console.error('Error submitting form:', error);
+      show(error.message || 'حدث خطأ أثناء حفظ البيانات', 'error');
     }
   };
 
-  const handleDelete = (photo) => {
+  const handleDelete = async (photo) => {
     if (window.confirm('هل أنت متأكد من حذف هذه الصورة؟')) {
-      setPhotos(prev => prev.filter(p => p.id !== photo.id));
+      try {
+        await photoService.deletePhoto(photo._id);
       show('تم حذف الصورة بنجاح', 'success');
+        fetchPhotos(); // Refresh photos list
+      } catch (error) {
+        show('حدث خطأ أثناء حذف الصورة', 'error');
+      }
     }
   };
 
   const handleEdit = (photo) => {
     setEditingPhoto(photo);
+    if (photo.person) {
+      setSelectedPerson({
+        _id: photo.person._id,
+        name: photo.person.name,
+        image: photo.person.image,
+        bio: photo.person.bio
+      });
+    }
     setIsAddModalOpen(true);
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(URL.createObjectURL(file));
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        show('حجم الصورة يجب أن يكون أقل من 10 ميجابايت', 'error');
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length > 0) {
+      setImageFiles(prev => [...prev, ...validFiles.map(file => ({
+        file,
+        preview: URL.createObjectURL(file)
+      }))]);
     }
   };
 
-  const handleDownload = (photo) => {
+  const handleRemoveImage = (index) => {
+    setImageFiles(prev => {
+      const newFiles = [...prev];
+      URL.revokeObjectURL(newFiles[index].preview);
+      newFiles.splice(index, 1);
+      return newFiles;
+    });
+  };
+
+  const handleDeleteExistingImage = (imageId) => {
+    setImagesToDelete(prev => [...prev, imageId]);
+  };
+
+  const handleReorderImages = (dragIndex, dropIndex) => {
+    setImageOrder(prev => {
+      const newOrder = [...prev];
+      const [removed] = newOrder.splice(dragIndex, 1);
+      newOrder.splice(dropIndex, 0, removed);
+      return newOrder;
+    });
+  };
+
+  const handleDownload = async (photo) => {
     try {
-      // Create a temporary link element
       const link = document.createElement('a');
       link.href = photo.image;
-      
-      // Get file extension from image URL
       const extension = photo.image.split('.').pop();
-      
-      // Create filename from title and extension
       const filename = `${photo.title}.${extension}`;
       link.download = filename;
-      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       show('جاري تحميل الصورة', 'success');
     } catch (error) {
       show('حدث خطأ أثناء تحميل الصورة', 'error');
-      console.error('Download error:', error);
     }
   };
 
   const handleShare = (photo) => {
-    // Check if Web Share API is supported
     if (navigator.share) {
       navigator.share({
         title: photo.title,
@@ -660,7 +1106,6 @@ const Photos = () => {
       .then(() => show('تم مشاركة الصورة بنجاح', 'success'))
       .catch(() => show('حدث خطأ أثناء المشاركة', 'error'));
     } else {
-      // Fallback: Copy link to clipboard
       navigator.clipboard.writeText(window.location.href)
         .then(() => show('تم نسخ الرابط إلى الحافظة', 'success'))
         .catch(() => show('حدث خطأ أثناء نسخ الرابط', 'error'));
@@ -702,6 +1147,29 @@ const Photos = () => {
     setSelectedCategory(value);
   };
 
+  const handleImageScroll = (photoId, event) => {
+    const container = event.target;
+    const scrollPosition = container.scrollLeft;
+    const imageWidth = container.clientWidth;
+    const activeIndex = Math.round(scrollPosition / imageWidth);
+    setActiveImageIndices(prev => ({
+      ...prev,
+      [photoId]: activeIndex
+    }));
+  };
+
+  const handleImageNavigation = (photoId, direction) => {
+    const container = document.querySelector(`#carousel-${photoId}`);
+    if (container) {
+      const imageWidth = container.clientWidth;
+      const currentScroll = container.scrollLeft;
+      const newScroll = direction === 'left' 
+        ? currentScroll - imageWidth 
+        : currentScroll + imageWidth;
+      container.scrollTo({ left: newScroll, behavior: 'smooth' });
+    }
+  };
+
   return (
     <Container>
       <Header>
@@ -723,7 +1191,7 @@ const Photos = () => {
           </div>
           <div className="content">
             <h3>إجمالي الصور</h3>
-            <div className="value">{photos.length}</div>
+            <div className="value">{stats.totalPhotos}</div>
           </div>
         </StatCard>
         <StatCard
@@ -735,8 +1203,8 @@ const Photos = () => {
             <FiEye />
           </div>
           <div className="content">
-            <h3>المشاهدات</h3>
-            <div className="value">2.5K</div>
+            <h3>إجمالي المشاهدات</h3>
+            <div className="value">{stats.totalViews}</div>
           </div>
         </StatCard>
         <StatCard
@@ -748,8 +1216,21 @@ const Photos = () => {
             <FiHeart />
           </div>
           <div className="content">
-            <h3>التفاعلات</h3>
-            <div className="value">450</div>
+            <h3>إجمالي الإعجابات</h3>
+            <div className="value">{stats.totalLikes}</div>
+            </div>
+        </StatCard>
+        <StatCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0, transition: { delay: 0.3 } }}
+          color="info"
+        >
+          <div className="icon">
+            <FiMessageSquare />
+          </div>
+          <div className="content">
+            <h3>إجمالي التعليقات</h3>
+            <div className="value">{stats.totalComments}</div>
           </div>
         </StatCard>
       </StatsContainer>
@@ -832,49 +1313,128 @@ const Photos = () => {
 
       <Content>
         <PhotosGrid>
-          {photos
+          {loading ? (
+            <div>جاري التحميل...</div>
+          ) : (
+            photos
             .filter(photo => 
               photo.title.toLowerCase().includes(search.toLowerCase()) ||
               photo.description.toLowerCase().includes(search.toLowerCase())
             )
+              .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date, newest first
             .map(photo => (
               <PhotoCard
-                key={photo.id}
+                  key={photo._id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setCurrentPhoto(photo)}
-              >
-                <div className="image-container">
-                  <img src={photo.image} alt={photo.title} />
+                  transition={{ duration: 0.3 }}
+                  whileHover={{ y: -4 }}
+                >
+                  <div className="image-carousel">
+                    <div 
+                      id={`carousel-${photo._id}`}
+                      className="carousel-container"
+                      onScroll={(e) => handleImageScroll(photo._id, e)}
+                    >
+                      {photo.images
+                        .sort((a, b) => (a.order || 0) - (b.order || 0)) // Sort images by order
+                        .map((image, index) => (
+                          <img 
+                            key={image._id} 
+                            src={image.url} 
+                            alt={`${photo.title} - Image ${index + 1}`}
+                            loading="lazy"
+                          />
+                        ))}
                 </div>
-                <div className="overlay">
-                  <div className="top">
-                    <ActionButton onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(photo);
-                    }}>
-                      <FiEdit2 />
-                    </ActionButton>
-                    <ActionButton onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(photo);
-                    }}>
-                      <FiTrash2 />
-                    </ActionButton>
+                    
+                    {photo.images.length > 1 && (
+                      <>
+                        <div className="carousel-indicators">
+                          {photo.images.map((_, index) => (
+                            <div
+                              key={index}
+                              className={`indicator ${activeImageIndices[photo._id] === index ? 'active' : ''}`}
+                              onClick={() => {
+                                const container = document.querySelector(`#carousel-${photo._id}`);
+                                if (container) {
+                                  container.scrollTo({
+                                    left: container.clientWidth * index,
+                                    behavior: 'smooth'
+                                  });
+                                }
+                              }}
+                            />
+                          ))}
                   </div>
-                  <div className="bottom">
-                    <h3>{photo.title}</h3>
+                        <button 
+                          className="carousel-arrow left"
+                          onClick={() => handleImageNavigation(photo._id, 'left')}
+                          aria-label="Previous image"
+                        >
+                          <FiChevronLeft />
+                        </button>
+                        <button 
+                          className="carousel-arrow right"
+                          onClick={() => handleImageNavigation(photo._id, 'right')}
+                          aria-label="Next image"
+                        >
+                          <FiChevronRight />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="card-content">
+                    <h3 className="title">{photo.title}</h3>
                     <div className="meta">
-                      <span>
+                      <div className="meta-group">
                         <FiCalendar />
-                        {new Date(photo.date).toLocaleDateString('ar-EG')}
-                      </span>
+                        <span>{new Date(photo.date).toLocaleDateString('ar-EG')}</span>
                     </div>
+                      {photo.category && (
+                        <div className="meta-group">
+                          <FiFolder />
+                          <span>{photo.category}</span>
+                        </div>
+                      )}
+                      <div className="meta-group">
+                        <FiEye />
+                        <span>المشاهدات</span>
+                        <span className="count">{photo.views || 0}</span>
+                      </div>
+                      <div className="meta-group">
+                        <FiHeart />
+                        <span>الإعجابات</span>
+                        <span className="count">{photo.likes?.length || 0}</span>
+                      </div>
+                      <div className="meta-group">
+                        <FiMessageSquare />
+                        <span>التعليقات</span>
+                        <span className="count">{photo.comments?.length || 0}</span>
+                      </div>
+                    </div>
+                    {photo.description && (
+                      <p className="description">{photo.description}</p>
+                    )}
+                    <div className="actions">
+                      <button onClick={() => handleEdit(photo)}>
+                        <FiEdit2 />
+                        تعديل
+                      </button>
+                      <button onClick={() => handleDelete(photo)}>
+                        <FiTrash2 />
+                        حذف
+                      </button>
+                      <button onClick={() => setCurrentPhoto(photo)}>
+                        <FiEye />
+                        عرض
+                      </button>
                   </div>
                 </div>
               </PhotoCard>
-            ))}
+              ))
+          )}
         </PhotosGrid>
 
         <Modal
@@ -882,6 +1442,9 @@ const Photos = () => {
           onClose={() => {
             setIsAddModalOpen(false);
             setEditingPhoto(null);
+            setImageFiles([]);
+            setImagesToDelete([]);
+            setImageOrder([]);
           }}
           title={editingPhoto ? 'تعديل الصورة' : 'إضافة صورة'}
         >
@@ -903,8 +1466,20 @@ const Photos = () => {
                 required
               >
                 <option value="">اختر التصنيف</option>
-                <option value="المدح والتراث">المدح والتراث</option>
-                <option value="الشعراء والمنشدون">الشعراء والمنشدون</option>
+                <option value="manuscripts">مخطوطة</option>
+                <option value="instruments">الآلات الموسيقية القديمة</option>
+                <option value="historical">الآثار التاريخية</option>
+                <option value="mosques">المساجد</option>
+                <option value="architecture">العمارة</option>
+                <option value="artifacts">القطع الأثرية</option>
+                <option value="calligraphy">الخط العربي</option>
+                <option value="cultural">التراث الثقافي</option>
+                <option value="events">المناسبات</option>
+                <option value="people">الشخصيات</option>
+                <option value="landmarks">المعالم</option>
+                <option value="traditions">التقاليد</option>
+                <option value="ceremonies">الاحتفالات</option>
+                <option value="other">أخرى</option>
               </Select>
             </FormGroup>
 
@@ -928,14 +1503,15 @@ const Photos = () => {
             </FormGroup>
 
             <FormGroup>
-              <label>الصورة</label>
+              <label>الصور</label>
               <FileInputWrapper>
                 <FileInput
                   type="file"
                   id="photo-upload"
                   accept="image/*"
                   onChange={handleImageChange}
-                  required={!editingPhoto}
+                  multiple
+                  required={!editingPhoto && imageFiles.length === 0}
                 />
                 <FileInputLabel 
                   htmlFor="photo-upload"
@@ -944,18 +1520,85 @@ const Photos = () => {
                   onDrop={handleDrop}
                 >
                   <FiImage className="icon" />
-                  <span className="main-text">اختر صورة أو اسحبها هنا</span>
+                  <span className="main-text">
+                    {editingPhoto ? 'إضافة صور جديدة' : 'اختر صور أو اسحبها هنا'}
+                  </span>
                   <span className="sub-text">
-                    PNG, JPG, WEBP حتى 10 ميجابايت
+                    PNG, JPG, WEBP حتى 10 ميجابايت لكل صورة
                   </span>
                 </FileInputLabel>
               </FileInputWrapper>
-              {(imageFile || editingPhoto?.image) && (
-                <ImagePreview
-                  src={imageFile || editingPhoto?.image}
-                  alt="معاينة الصورة"
-                />
+
+              {/* Preview of new images */}
+              {imageFiles.length > 0 && (
+                <ImagePreviewGrid>
+                  {imageFiles.map((image, index) => (
+                    <ImagePreviewItem key={index}>
+                      <img src={image.preview} alt={`Preview ${index + 1}`} />
+                      <div className="actions">
+                        <button onClick={() => handleRemoveImage(index)}>
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    </ImagePreviewItem>
+                  ))}
+                </ImagePreviewGrid>
               )}
+
+              {/* Preview of existing images */}
+              {editingPhoto && editingPhoto.images && (
+                <ImagePreviewGrid>
+                  {editingPhoto.images
+                    .filter(img => !imagesToDelete.includes(img._id))
+                    .map((image, index) => (
+                      <ImagePreviewItem 
+                        key={image._id}
+                        className={image.isMain ? 'main' : ''}
+                      >
+                        <img src={image.url} alt={`Image ${index + 1}`} />
+                        <div className="actions">
+                          <button onClick={() => handleDeleteExistingImage(image._id)}>
+                            <FiTrash2 />
+                          </button>
+                        </div>
+                      </ImagePreviewItem>
+                    ))}
+                </ImagePreviewGrid>
+              )}
+            </FormGroup>
+
+            <FormGroup>
+              <label>الشخص (اختياري)</label>
+              <PersonSelector>
+                <div 
+                  className="selected-person"
+                  onClick={() => setIsPersonSelectorOpen(true)}
+                >
+                  {selectedPerson ? (
+                    <>
+                      <div className="avatar">
+                        <img src={selectedPerson.image} alt={selectedPerson.name} />
+                      </div>
+                      <div className="info">
+                        <h4>{selectedPerson.name}</h4>
+                        <p>{selectedPerson.bio}</p>
+                      </div>
+                      <FiEdit2 className="select-icon" />
+                    </>
+                  ) : (
+                    <>
+                      <div className="avatar">
+                        <FiUser size={24} />
+                      </div>
+                      <div className="info">
+                        <h4>اختر الشخص</h4>
+                        <p>انقر لاختيار الشخص</p>
+                      </div>
+                      <FiChevronDown className="select-icon" />
+                    </>
+                  )}
+                </div>
+              </PersonSelector>
             </FormGroup>
 
             <ButtonGroup align="end">
@@ -975,7 +1618,15 @@ const Photos = () => {
             >
               <div className="backdrop" onClick={() => setCurrentPhoto(null)} />
               <div className="viewer-container">
-                <img src={currentPhoto.image} alt={currentPhoto.title} />
+                <img 
+                  src={currentPhoto.images.find(img => img.isMain)?.url || currentPhoto.images[0]?.url} 
+                  alt={currentPhoto.title} 
+                />
+                {currentPhoto.images.length > 1 && (
+                  <div className="image-navigation">
+                    {/* Add image navigation controls here */}
+                  </div>
+                )}
                 <Button 
                   className="close-btn"
                   variant="secondary"
@@ -1005,6 +1656,46 @@ const Photos = () => {
             </PhotoViewer>
           )}
         </AnimatePresence>
+
+        <Modal
+          isOpen={isPersonSelectorOpen}
+          onClose={() => setIsPersonSelectorOpen(false)}
+          title="اختيار الشخص"
+        >
+          <SearchBar>
+            <FiSearch />
+            <input
+              type="text"
+              placeholder="ابحث عن شخص..."
+              value={personSearch}
+              onChange={(e) => setPersonSearch(e.target.value)}
+            />
+          </SearchBar>
+
+          <PersonsGrid>
+            {persons
+              .filter(person => 
+                person.name.toLowerCase().includes(personSearch.toLowerCase()) ||
+                person.bio.toLowerCase().includes(personSearch.toLowerCase())
+              )
+              .map(person => (
+                <PersonCard
+                  key={person._id}
+                  selected={selectedPerson?._id === person._id}
+                  onClick={() => {
+                    setSelectedPerson(person);
+                    setIsPersonSelectorOpen(false);
+                  }}
+                >
+                  <div className="avatar">
+                    <img src={person.image} alt={person.name} />
+                  </div>
+                  <h4>{person.name}</h4>
+                  <p>{person.bio}</p>
+                </PersonCard>
+              ))}
+          </PersonsGrid>
+        </Modal>
       </Content>
     </Container>
   );

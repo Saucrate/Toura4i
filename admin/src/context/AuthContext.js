@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 const AuthContext = createContext(null);
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -8,37 +11,73 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth token
-    const token = localStorage.getItem('auth_token');
-    if (token) {
+    // Check for stored auth token and user data
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+
+    if (token && storedUser) {
+      // Set default authorization header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Set user data
+      setUser(JSON.parse(storedUser));
       setIsAuthenticated(true);
-      // You would typically validate the token here
-      setUser({
-        name: 'مدير النظام',
-        email: '23039@supnum.mr',
-        role: 'admin'
-      });
+
+      // Validate token
+      validateToken();
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
-    if (email === '23039@supnum.mr' && password === '12344321') {
-      const fakeToken = 'fake_jwt_token';
-      localStorage.setItem('auth_token', fakeToken);
+  const validateToken = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/auth/validate`);
       setIsAuthenticated(true);
-      setUser({
-        name: 'مدير النظام',
-        email: '23039@supnum.mr',
-        role: 'admin'
-      });
-      return true;
+      setUser(response.data.user);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    } catch (error) {
+      // If token is invalid, clear everything
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      delete axios.defaults.headers.common['Authorization'];
+      setIsAuthenticated(false);
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-    return false;
+  };
+
+  const login = async (email, password) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/login`, {
+        email,
+        password
+      });
+
+      const { token, user } = response.data;
+      
+      // Store token and user data
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      // Set axios default header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      setIsAuthenticated(true);
+      setUser(user);
+      return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('auth_token');
+    // Clear everything
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    delete axios.defaults.headers.common['Authorization'];
     setIsAuthenticated(false);
     setUser(null);
   };

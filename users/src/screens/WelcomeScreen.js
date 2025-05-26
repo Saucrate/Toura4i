@@ -91,12 +91,12 @@ const WelcomeScreen = () => {
         viewPosition: 0,
       });
     } else {
-      navigation.replace('Home');
+      navigation.replace('Main', { screen: 'Home' });
     }
   };
 
   const handleSkip = () => {
-    navigation.replace('Home');
+    navigation.replace('Main', { screen: 'Home' });
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }) => {

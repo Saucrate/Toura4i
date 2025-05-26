@@ -111,18 +111,21 @@ export const AudioProvider = ({ children }) => {
         return;
       }
 
+      // If the same track is already playing, just toggle play/pause
+      if (currentTrack?.id === track.id) {
+        await togglePlayPause();
+        return;
+      }
+
       // Unload previous sound if exists
       if (sound) {
-        console.log('Unloading previous sound');
         await sound.unloadAsync();
         setSound(null);
       }
-
-      console.log('Loading audio:', track.audio);
       
       // Create and load the new sound
       const { sound: newSound } = await Audio.Sound.createAsync(
-        track.audio,
+        { uri: track.audio },
         { 
           shouldPlay: true,
           staysActiveInBackground: true,
@@ -130,16 +133,16 @@ export const AudioProvider = ({ children }) => {
           progressUpdateIntervalMillis: 1000,
           positionMillis: 0,
           volume: 1.0,
-        },
-        onPlaybackStatusUpdate
+        }
       );
-
-      console.log('Audio loaded successfully');
       
       setSound(newSound);
       setCurrentTrack(track);
       setIsPlaying(true);
       setPlaylist(tracks);
+
+      // Set up status update listener
+      newSound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
 
     } catch (error) {
       console.log('Error playing track:', error);
@@ -157,13 +160,13 @@ export const AudioProvider = ({ children }) => {
   };
 
   const onPlaybackStatusUpdate = (status) => {
-    if (status.isLoaded) {
+    if (status && status.isLoaded) {
       setPosition(status.positionMillis);
       setDuration(status.durationMillis);
       
       if (status.didJustFinish) {
         if (isRepeat) {
-          sound.replayAsync();
+          sound?.replayAsync();
         } else {
           playNext();
         }
@@ -172,13 +175,21 @@ export const AudioProvider = ({ children }) => {
   };
 
   const togglePlayPause = async () => {
-    if (sound) {
+    if (!sound) return;
+
+    try {
+      const status = await sound.getStatusAsync();
+      if (!status.isLoaded) return;
+
       if (isPlaying) {
         await sound.pauseAsync();
+        setIsPlaying(false);
       } else {
         await sound.playAsync();
+        setIsPlaying(true);
       }
-      setIsPlaying(!isPlaying);
+    } catch (error) {
+      console.log('Error toggling play/pause:', error);
     }
   };
 

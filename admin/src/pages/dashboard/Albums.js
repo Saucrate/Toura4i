@@ -5,13 +5,17 @@ import {
   FiPlus, FiMusic, FiSearch, FiEdit2, FiTrash2, 
   FiPlay, FiPause, FiCalendar, FiDownload, FiUpload,
   FiHeadphones, FiDisc, FiClock, FiMoreVertical,
-  FiVolume2, FiSkipBack, FiSkipForward, FiX
+  FiVolume2, FiSkipBack, FiSkipForward, FiX, FiUser, FiChevronDown
 } from 'react-icons/fi';
 import { Button, IconButton } from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import { Form, FormGroup, Input, TextArea } from '../../components/common/Form';
 import { useNotification } from '../../components/common/Notification';
 import AudioPlayer from '../../components/common/AudioPlayer';
+import Loading from '../../components/common/Loading';
+import albumService from '../../services/albumService';
+import poetService from '../../services/poetService';
+import { toast } from 'react-hot-toast';
 
 // Styled Components
 const Container = styled.div`
@@ -86,22 +90,31 @@ const StatCard = styled(motion.div)`
 
 const SearchBar = styled.div`
   position: relative;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 
   input {
     width: 100%;
     padding: 1rem 3rem;
-    border-radius: 16px;
+    border-radius: 12px;
     border: 2px solid ${({ theme }) => theme.colors.border.light};
     background: ${({ theme }) => theme.colors.background.light};
     color: ${({ theme }) => theme.colors.text.primary};
-    font-size: 1rem;
+    font-size: 0.95rem;
     transition: all 0.2s ease;
     outline: none;
+
+    &:hover {
+      border-color: ${({ theme }) => theme.colors.accent}50;
+    }
 
     &:focus {
       border-color: ${({ theme }) => theme.colors.accent};
       box-shadow: 0 0 0 4px ${({ theme }) => theme.colors.accent}15;
+      background: ${({ theme }) => theme.colors.background.medium};
+    }
+
+    &::placeholder {
+      color: ${({ theme }) => theme.colors.text.secondary};
     }
   }
 
@@ -461,8 +474,222 @@ const StyledForm = styled(Form)`
             }
           }
         }
+
+        {track.uploadProgress !== undefined && (
+          <div className="upload-progress">
+            <progress value={track.uploadProgress} max="100" />
+            <span>{track.uploadProgress}%</span>
+          </div>
+        )}
       }
     }
+  }
+
+  .poets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+
+    .poet-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: ${({ theme }) => theme.colors.background.medium};
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateX(-4px);
+        background: ${({ theme }) => theme.colors.background.dark};
+      }
+
+      .avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        overflow: hidden;
+
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
+
+      .info {
+        flex: 1;
+
+        h4 {
+          font-size: 1rem;
+          color: ${({ theme }) => theme.colors.text.primary};
+          margin-bottom: 0.25rem;
+        }
+
+        p {
+          font-size: 0.875rem;
+          color: ${({ theme }) => theme.colors.text.secondary};
+        }
+      }
+    }
+  }
+`;
+
+const PoetSelector = styled.div`
+  .selected-poet {
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px solid ${({ theme }) => theme.colors.border.light};
+    background: ${({ theme }) => theme.colors.background.light};
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: ${({ theme }) => theme.colors.accent}50;
+    }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid ${({ theme }) => theme.colors.accent};
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .info {
+      flex: 1;
+
+      h4 {
+        font-size: 0.95rem;
+        color: ${({ theme }) => theme.colors.text.primary};
+        margin-bottom: 0.25rem;
+      }
+
+      p {
+        font-size: 0.875rem;
+        color: ${({ theme }) => theme.colors.text.secondary};
+      }
+    }
+
+    .select-icon {
+      color: ${({ theme }) => theme.colors.accent};
+      font-size: 1.25rem;
+    }
+  }
+`;
+
+const PoetsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 1rem;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: ${({ theme }) => theme.colors.border.light};
+    border-radius: 4px;
+  }
+`;
+
+const PoetCard = styled.div`
+  padding: 1rem;
+  border-radius: 12px;
+  border: 2px solid ${({ theme }) => theme.colors.border.light};
+  background: ${({ theme }) => theme.colors.background.light};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.accent};
+    transform: translateY(-2px);
+  }
+
+  ${({ selected, theme }) => selected && `
+    border-color: ${theme.colors.accent};
+    background: ${theme.colors.accent}10;
+  `}
+
+  .avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    border: 2px solid ${({ theme }) => theme.colors.accent};
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  h4 {
+    font-size: 1rem;
+    color: ${({ theme }) => theme.colors.text.primary};
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    font-size: 0.875rem;
+    color: ${({ theme }) => theme.colors.text.secondary};
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+`;
+
+// Progress bar için styled component ekleyelim
+const ProgressBar = styled.div`
+  width: 100%;
+  margin-top: 0.5rem;
+  
+  progress {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: ${({ theme }) => theme.colors.background.light};
+    
+    &::-webkit-progress-bar {
+      background: ${({ theme }) => theme.colors.background.light};
+      border-radius: 2px;
+    }
+    
+    &::-webkit-progress-value {
+      background: ${({ theme }) => theme.colors.accent};
+      border-radius: 2px;
+    }
+  }
+  
+  span {
+    font-size: 0.75rem;
+    color: ${({ theme }) => theme.colors.text.secondary};
+    margin-top: 0.25rem;
+    display: block;
   }
 `;
 
@@ -472,6 +699,8 @@ const Albums = () => {
   const { show } = useNotification();
   const audioRef = useRef(null);
   
+  const [loading, setLoading] = useState(false);
+  const [albums, setAlbums] = useState([]);
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState(null);
@@ -482,40 +711,49 @@ const Albums = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [poets, setPoets] = useState([]);
+  const [selectedPoet, setSelectedPoet] = useState(null);
+  const [isPoetSelectorOpen, setIsPoetSelectorOpen] = useState(false);
+  const [poetSearch, setPoetSearch] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Sample data
-  const [albums, setAlbums] = useState([
-    {
-      id: '1',
-      title: 'ديوان الشعر',
-      cover: '/photo1.jpg',
-      releaseDate: '2024-03-15',
-      tracksCount: 12,
-      duration: '1:24:36',
-      plays: 1500,
-      tracks: [
-        { 
-          id: '1', 
-          title: 'قصيدة الحب', 
-          duration: '4:32',
-          audioUrl: '/track1.mp3'
-        },
-        { 
-          id: '2', 
-          title: 'نشيد الصباح', 
-          duration: '3:45',
-          audioUrl: '/track1.mp3'
-        },
-        { 
-          id: '3', 
-          title: 'أغنية المساء', 
-          duration: '5:12',
-          audioUrl: '/track1.mp3'
-        },
-      ]
-    },
-    // Add more albums...
-  ]);
+  // Fetch albums on component mount
+  useEffect(() => {
+    fetchAlbums();
+  }, []);
+
+  // Fetch poets for the selector
+  useEffect(() => {
+    const fetchPoets = async () => {
+      try {
+        const data = await poetService.getAllPoets();
+        setPoets(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error fetching poets:', error);
+        show('حدث خطأ أثناء جلب قائمة الشعراء', 'error');
+        setPoets([]);
+      }
+    };
+
+    fetchPoets();
+  }, []);
+
+  const fetchAlbums = async () => {
+    try {
+      setLoading(true);
+      const response = await albumService.getAllAlbums();
+      console.log('Fetched albums:', response);
+      setAlbums(response.albums || []);
+    } catch (error) {
+      console.error('Error fetching albums:', error);
+      show('حدث خطأ أثناء جلب الألبومات', 'error');
+      setAlbums([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const stats = [
     {
@@ -551,125 +789,210 @@ const Albums = () => {
   };
 
   // Handle adding new track
-  const handleAddTrack = () => {
-    const newTrack = {
-      id: Date.now().toString(),
-      title: '',
-      file: null
-    };
-    setTracks(prev => [...prev, newTrack]);
+  const handleAddTrack = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTracks([...tracks, { title: '', file: null }]);
   };
 
   // Handle track title change
-  const handleTrackTitleChange = (trackId, newTitle) => {
-    setTracks(prev => prev.map(track => 
-      track.id === trackId ? { ...track, title: newTitle } : track
-    ));
+  const handleTrackChange = (index, field, value) => {
+    const newTracks = [...tracks];
+    newTracks[index] = { ...newTracks[index], [field]: value };
+    setTracks(newTracks);
   };
 
   // Handle track file selection
-  const handleTrackFileSelect = async (trackId) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*';
+  const handleTrackFileChange = async (index, e) => {
+    e.preventDefault();
+    e.stopPropagation();
     
-    input.onchange = async (e) => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'audio/*,video/*';
+    
+    fileInput.onchange = async (e) => {
       const file = e.target.files[0];
       if (file) {
         try {
-          // Get audio duration
-          const duration = await getAudioDuration(file);
+          console.log('Selected file:', {
+            name: file.name,
+            type: file.type,
+            size: file.size
+          });
+
+          let duration = 0;
+          if (file.type.startsWith('audio/')) {
+            duration = await getAudioDuration(file);
+          } else if (file.type.startsWith('video/')) {
+            duration = await getVideoDuration(file);
+          }
           
-          setTracks(prev => prev.map(track => 
-            track.id === trackId ? { 
-              ...track, 
-              file,
-              duration: formatDuration(duration),
-              audioUrl: URL.createObjectURL(file)
-            } : track
-          ));
+          const newTracks = [...tracks];
+          newTracks[index] = { 
+            ...newTracks[index], 
+            file, // Store the actual File object
+            duration: formatDuration(duration)
+          };
+          setTracks(newTracks);
+
+          // Log the updated track
+          console.log('Updated track:', {
+            index,
+            title: newTracks[index].title,
+            file: {
+              name: file.name,
+              type: file.type,
+              size: file.size
+            },
+            duration: newTracks[index].duration
+          });
         } catch (error) {
-          show('حدث خطأ أثناء تحميل الملف', 'error');
+          console.error('Error processing media file:', error);
+          toast.error('Error processing media file');
         }
       }
     };
     
-    input.click();
+    fileInput.click();
+  };
+
+  const getVideoDuration = (file) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        resolve(video.duration);
+      };
+      
+      video.onerror = () => {
+        window.URL.revokeObjectURL(video.src);
+        reject('Error loading video file');
+      };
+      
+      video.src = URL.createObjectURL(file);
+    });
   };
 
   // Handle track removal
-  const handleRemoveTrack = (trackId) => {
-    setTracks(prev => prev.filter(track => track.id !== trackId));
+  const handleRemoveTrack = (index) => {
+    setTracks(tracks.filter((_, i) => i !== index));
+  };
+
+  // Add resetForm function
+  const resetForm = () => {
+    setCoverFile(null);
+    setTracks([]);
+    setSelectedPoet(null);
+    setEditingAlbum(null);
+    setIsAddModalOpen(false);
   };
 
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    
+    setUploadError(null);
+    setIsUploading(true);
     try {
-      const newAlbum = {
-        id: editingAlbum?.id || Date.now().toString(),
-        title: formData.get('title'),
-        cover: coverFile || editingAlbum?.cover || '/photo1.jpg',
-        tracksCount: tracks.length,
-        duration: calculateTotalDuration(tracks),
-        plays: editingAlbum?.plays || 0,
-        tracks: tracks.map(track => ({
-          id: track.id,
-          title: track.title,
-          duration: track.duration || '0:00'
-        }))
-      };
-
-      if (editingAlbum) {
-        setAlbums(prev => prev.map(album => 
-          album.id === editingAlbum.id ? newAlbum : album
-        ));
-        show('تم تحديث الألبوم بنجاح', 'success');
-      } else {
-        setAlbums(prev => [...prev, newAlbum]);
-        show('تم إضافة الألبوم بنجاح', 'success');
+      if (!selectedPoet || !selectedPoet._id) {
+        toast.error('Please select a poet');
+        return;
       }
 
-      setIsAddModalOpen(false);
-      setEditingAlbum(null);
-      setCoverFile(null);
-      setTracks([]);
+      const formData = new FormData();
+      formData.append('title', e.target.title.value);
+      formData.append('description', e.target.description.value);
+      formData.append('artist', selectedPoet._id);
+
+      // Cover image
+      if (coverFile) {
+        if (typeof coverFile === 'string') {
+          const response = await fetch(coverFile);
+          const blob = await response.blob();
+          formData.append('image', blob, 'cover.jpg');
+        } else {
+          formData.append('image', coverFile);
+        }
+      }
+
+      // Track dosyalarını ve meta verisini ekle
+      const tracksData = [];
+      tracks.forEach((track, index) => {
+        if (track.file) {
+          formData.append('trackFiles', track.file);
+          tracksData.push({
+            title: track.title,
+            duration: track.duration || '0:00'
+          });
+        }
+      });
+      formData.append('tracks', JSON.stringify(tracksData));
+
+      // Progress bar için state'i sıfırla
+      setUploadProgress(0);
+
+      await albumService.createAlbum(formData, (progressEvent) => {
+        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setUploadProgress(percent);
+      });
+
+      toast.success('Album oluşturuldu');
+      fetchAlbums();
+      resetForm();
+      setUploadProgress(0);
+      setIsUploading(false);
     } catch (error) {
-      show('حدث خطأ أثناء حفظ الألبوم', 'error');
+      setUploadError(error);
+      setIsUploading(false);
+      setUploadProgress(0);
+      toast.error(error.response?.data?.message || 'Yükleme sırasında hata oluştu');
     }
   };
 
-  // Helper function to calculate total duration
-  const calculateTotalDuration = (tracks) => {
-    // This is a placeholder. In a real app, you'd calculate this from actual audio files
-    return tracks.reduce((total, track) => {
-      const [mins, secs] = (track.duration || '0:00').split(':').map(Number);
-      return total + mins * 60 + secs;
-    }, 0);
-  };
-
-  // Add these handlers at the top of your Albums component
-  const handleEditAlbum = (album) => {
-    setEditingAlbum(album);
-    setTracks(album.tracks);
-    setCoverFile(album.cover);
-    setIsAddModalOpen(true);
-  };
-
-  const handleDeleteAlbum = (albumId) => {
+  const handleDelete = async (album) => {
     if (window.confirm('هل أنت متأكد من حذف هذا الألبوم؟')) {
-      setAlbums(prev => prev.filter(album => album.id !== albumId));
-      show('تم حذف الألبوم بنجاح', 'success');
+      try {
+        await albumService.deleteAlbum(album._id);
+        show('تم حذف الألبوم بنجاح', 'success');
+        fetchAlbums();
+      } catch (error) {
+        console.error('Delete album error:', error);
+        show('حدث خطأ أثناء حذف الألبوم', 'error');
+      }
     }
+  };
+
+  const handleEdit = (album) => {
+    setEditingAlbum(album);
+    // Make sure we're setting the correct artist object with _id
+    if (album.artist && typeof album.artist === 'object') {
+      setSelectedPoet({
+        _id: album.artist._id,
+        name: album.artist.name,
+        image: album.artist.image,
+        period: album.artist.period
+      });
+    }
+    setCoverFile(album.image);
+    // If album has tracks, set them
+    if (album.tracks && Array.isArray(album.tracks)) {
+      setTracks(album.tracks.map(track => ({
+        id: track._id || Date.now().toString(),
+        title: track.title,
+        file: null, // We don't need to set the file for existing tracks
+        duration: track.duration || '0:00'
+      })));
+    }
+    setIsAddModalOpen(true);
   };
 
   // Fix the play functionality by updating the handleTrackPlay function
   const handleTrackPlay = (track, album) => {
     try {
       // If same track is clicked, just toggle play/pause
-      if (currentTrack?.id === track.id) {
+      if (currentTrack?.id === track._id) {
         if (audioRef.current) {
           if (isPlaying) {
             audioRef.current.pause();
@@ -689,12 +1012,13 @@ const Albums = () => {
 
       setCurrentTrack({
         ...track,
-        id: track.id,
+        id: track._id,
         albumTitle: album.title,
-        albumCover: album.cover
+        albumCover: album.image
       });
 
-      setAudioUrl(track.audioUrl);
+      // Set the audio URL to the track's file URL
+      setAudioUrl(track.file);
       
       // Reset progress when changing tracks
       setProgress(0);
@@ -749,6 +1073,7 @@ const Albums = () => {
   };
 
   const formatDuration = (seconds) => {
+    if (!seconds) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -777,6 +1102,10 @@ const Albums = () => {
 
   return (
     <Container>
+      {loading ? (
+        <Loading fullScreen />
+      ) : (
+        <>
       <PageHeader>
         <div className="header-content">
           <h1>الألبومات</h1>
@@ -830,7 +1159,7 @@ const Albums = () => {
             >
               <div className="album-header">
                 <div className="cover">
-                  <img src={album.cover} alt={album.title} />
+                      <img src={album.image} alt={album.title} />
                   <div className="play-overlay">
                     <button onClick={() => handleTrackPlay(album.tracks[0], album)}>
                       {isPlaying && currentTrack?.id === album.tracks[0].id ? <FiPause /> : <FiPlay />}
@@ -853,13 +1182,13 @@ const Albums = () => {
                 <div className="actions">
                   <IconButton onClick={(e) => {
                     e.stopPropagation();
-                    handleEditAlbum(album);
+                        handleEdit(album);
                   }}>
                     <FiEdit2 />
                   </IconButton>
                   <IconButton onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteAlbum(album.id);
+                        handleDelete(album);
                   }}>
                     <FiTrash2 />
                   </IconButton>
@@ -870,11 +1199,11 @@ const Albums = () => {
               </div>
               <div className="tracks-list">
                 {album.tracks.map((track, index) => (
-                  <div className="track" key={track.id}>
+                      <div className="track" key={track._id}>
                     <div className="number">{index + 1}</div>
                     <div className="track-info">
                       <h4>{track.title}</h4>
-                      <div className="duration">{track.duration}</div>
+                          <div className="duration">{formatDuration(track.duration)}</div>
                     </div>
                     <button 
                       type="button"
@@ -885,7 +1214,7 @@ const Albums = () => {
                         handleTrackPlay(track, album);
                       }}
                     >
-                      {isPlaying && currentTrack?.id === track.id ? <FiPause /> : <FiPlay />}
+                          {isPlaying && currentTrack?.id === track._id ? <FiPause /> : <FiPlay />}
                     </button>
                   </div>
                 ))}
@@ -895,19 +1224,19 @@ const Albums = () => {
       </AlbumsGrid>
 
       <Modal
-        isOpen={isAddModalOpen || editingAlbum}
+            isOpen={isAddModalOpen}
         onClose={() => {
           setIsAddModalOpen(false);
           setEditingAlbum(null);
           setCoverFile(null);
-          setTracks([]);
+              setSelectedPoet(null);
         }}
         title={editingAlbum ? 'تعديل الألبوم' : 'إضافة ألبوم جديد'}
       >
-        <StyledForm onSubmit={handleSubmit}>
+        <StyledForm id="album-form" onSubmit={handleSubmit}>
           <div className="cover-upload">
             <div className="cover-preview">
-              <img src={coverFile || editingAlbum?.cover || '/photo1.jpg'} alt="غلاف الألبوم" />
+                  <img src={coverFile || editingAlbum?.image || '/photo1.jpg'} alt="غلاف الألبوم" />
             </div>
             <label className="upload-overlay" htmlFor="cover-input">
               <FiUpload />
@@ -932,59 +1261,121 @@ const Albums = () => {
             />
           </FormGroup>
 
+              <FormGroup>
+                <label>وصف الألبوم</label>
+                <TextArea
+                  name="description"
+                  defaultValue={editingAlbum?.description}
+                  placeholder="أدخل وصف الألبوم"
+                  rows={4}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <label>الشاعر</label>
+                <PoetSelector>
+                  <div 
+                    className="selected-poet"
+                    onClick={() => setIsPoetSelectorOpen(true)}
+                  >
+                    {selectedPoet ? (
+                      <>
+                        <div className="avatar">
+                          <img src={selectedPoet.image} alt={selectedPoet.name} />
+                        </div>
+                        <div className="info">
+                          <h4>{selectedPoet.name}</h4>
+                          <p>{selectedPoet.period}</p>
+                        </div>
+                        <FiEdit2 className="select-icon" />
+                      </>
+                    ) : (
+                      <>
+                        <div className="avatar">
+                          <FiUser size={24} />
+                        </div>
+                        <div className="info">
+                          <h4>اختر الشاعر</h4>
+                          <p>انقر للاختيار من قائمة الشعراء</p>
+                        </div>
+                        <FiChevronDown className="select-icon" />
+                      </>
+                    )}
+                  </div>
+                </PoetSelector>
+          </FormGroup>
+
           <div className="tracks-section">
             <div className="tracks-header">
               <h3>المقاطع الصوتية</h3>
-              <Button type="button" variant="secondary" onClick={handleAddTrack}>
+                  <Button onClick={handleAddTrack}>
                 <FiPlus />
                 إضافة مقطع
               </Button>
             </div>
-
             <div className="tracks-list">
               {tracks.map((track, index) => (
-                <div className="track-item" key={track.id}>
+                    <div key={track.id || index} className="track-item">
                   <div className="track-number">{index + 1}</div>
                   <div className="track-info">
                     <input
                       type="text"
                       value={track.title}
-                      onChange={(e) => handleTrackTitleChange(track.id, e.target.value)}
+                          onChange={(e) => handleTrackChange(index, 'title', e.target.value)}
                       placeholder="عنوان المقطع"
                     />
+                        {track.file && (
                     <div className="audio-file">
-                      {track.file ? track.file.name : 'لم يتم اختيار ملف'}
+                            {track.file.name} ({track.duration || '0:00'})
                     </div>
+                        )}
                   </div>
                   <div className="track-actions">
-                    <IconButton 
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleTrackFileSelect(track.id);
-                      }}
-                    >
+                        <IconButton onClick={(e) => handleTrackFileChange(index, e)}>
                       <FiUpload />
                     </IconButton>
-                    <IconButton 
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleRemoveTrack(track.id);
-                      }}
-                    >
+                        <IconButton onClick={() => handleRemoveTrack(index)}>
                       <FiTrash2 />
                     </IconButton>
                   </div>
+                  {track.uploadProgress !== undefined && (
+                    <ProgressBar>
+                      <progress value={track.uploadProgress} max="100" />
+                      <span>{track.uploadProgress}%</span>
+                    </ProgressBar>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
+          {uploadProgress > 0 && (
+            <ProgressBar>
+              <progress value={uploadProgress} max="100" />
+              <span>{uploadProgress}%</span>
+            </ProgressBar>
+          )}
+
+          {uploadError && (
+            <div style={{ color: 'red', margin: '1rem 0' }}>
+              Yükleme başarısız oldu: {uploadError.message || 'Bilinmeyen hata'}
+              <Button
+                variant="primary"
+                onClick={() => document.getElementById('album-form').requestSubmit()}
+                disabled={isUploading}
+                style={{ marginLeft: 8 }}
+              >
+                Tekrar Dene
+              </Button>
+            </div>
+          )}
+
           <div className="form-footer">
             <Button type="button" variant="secondary" onClick={() => {
               setIsAddModalOpen(false);
               setEditingAlbum(null);
+                  setCoverFile(null);
+                  setSelectedPoet(null);
             }}>
               إلغاء
             </Button>
@@ -993,6 +1384,47 @@ const Albums = () => {
             </Button>
           </div>
         </StyledForm>
+      </Modal>
+
+          {/* Poet Selector Modal */}
+          <Modal
+            isOpen={isPoetSelectorOpen}
+            onClose={() => setIsPoetSelectorOpen(false)}
+            title="اختيار الشاعر"
+          >
+            <SearchBar>
+              <FiSearch />
+              <input
+                type="text"
+                placeholder="ابحث عن شاعر..."
+                value={poetSearch}
+                onChange={(e) => setPoetSearch(e.target.value)}
+              />
+            </SearchBar>
+
+            <PoetsGrid>
+              {poets
+                .filter(poet => 
+                  poet.name.toLowerCase().includes(poetSearch.toLowerCase()) ||
+                  poet.bio.toLowerCase().includes(poetSearch.toLowerCase())
+                )
+                .map(poet => (
+                  <PoetCard
+                    key={poet._id}
+                    selected={selectedPoet?._id === poet._id}
+                    onClick={() => {
+                      setSelectedPoet(poet);
+                      setIsPoetSelectorOpen(false);
+                    }}
+                  >
+                    <div className="avatar">
+                      <img src={poet.image} alt={poet.name} />
+                    </div>
+                    <h4>{poet.name}</h4>
+                    <p>{poet.bio}</p>
+                  </PoetCard>
+                ))}
+            </PoetsGrid>
       </Modal>
 
       <AnimatePresence>
@@ -1039,6 +1471,8 @@ const Albums = () => {
           </>
         )}
       </AnimatePresence>
+        </>
+      )}
     </Container>
   );
 };

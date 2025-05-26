@@ -5,9 +5,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   FiHome, FiBook, FiMusic, FiImage, 
   FiVideo, FiUsers, FiLogOut, 
-  FiMic, FiDisc 
+  FiMic, FiDisc, FiUser, FiMap 
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useLogo } from '../../context/LogoContext';
 
 const SidebarContainer = styled(motion.aside)`
   width: 280px;
@@ -142,23 +143,27 @@ const LogoutButton = styled(motion.button)`
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const { logout, user } = useAuth();
+  const { logo } = useLogo();
 
   const mainMenuItems = [
     { icon: FiHome, label: 'الرئيسية', path: '/' },
-    { icon: FiBook, label: 'القصائد', path: '/poems', badge: '12' },
+    { icon: FiBook, label: 'القصائد', path: '/poems' },
     { icon: FiUsers, label: 'الشعراء', path: '/poets' },
     { icon: FiMusic, label: 'الألبومات', path: '/albums' },
+    { icon: FiBook, label: 'الكتب', path: '/books' },
+    { icon: FiMap, label: 'الأماكن', path: '/places' },
   ];
 
   const mediaMenuItems = [
-    { icon: FiMic, label: 'الطلعات', path: '/talat', badge: 'جديد' },
+    { icon: FiMic, label: 'التسجيلات الصوتية', path: '/audio-recordings' },
     { icon: FiImage, label: 'الصور', path: '/photos' },
     { icon: FiVideo, label: 'الفيديوهات', path: '/videos' },
   ];
 
   const menuItems = [
     ...mainMenuItems,
-    ...mediaMenuItems
+    ...mediaMenuItems,
+    { icon: FiUser, label: 'الملف الشخصي', path: '/profile' }
   ];
 
   return (
@@ -173,7 +178,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         >
           <Logo>
             <motion.img 
-              src="/logo.png" 
+              src={logo} 
               alt="الهلال" 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -191,15 +196,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               >
                 <item.icon />
                 <span>{item.label}</span>
-                {item.badge && (
-                  <Badge
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring' }}
-                  >
-                    {item.badge}
-                  </Badge>
-                )}
               </MenuItem>
             ))}
           </NavSection>
@@ -215,15 +211,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               >
                 <item.icon />
                 <span>{item.label}</span>
-                {item.badge && (
-                  <Badge
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring' }}
-                  >
-                    {item.badge}
-                  </Badge>
-                )}
               </MenuItem>
             ))}
           </NavSection>
@@ -237,6 +224,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               >
                 <FiUsers />
                 <span>المستخدمين</span>
+              </MenuItem>
+              <MenuItem
+                to="/profile"
+                active={location.pathname === '/profile' ? 1 : 0}
+              >
+                <FiUser />
+                <span>الملف الشخصي</span>
               </MenuItem>
             </NavSection>
           )}

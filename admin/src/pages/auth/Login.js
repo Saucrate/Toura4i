@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { FiUser, FiLock, FiCoffee } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import { useLogo } from '../../context/LogoContext';
+import { useNotification } from '../../components/common/Notification';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -133,31 +135,34 @@ const ErrorMessage = styled(motion.div)`
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const { logo } = useLogo();
+  const { show } = useNotification();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
       const success = await login(formData.email, formData.password);
       if (success) {
-        navigate('/');
+        show('تم تسجيل الدخول بنجاح', 'success');
+        const from = location.state?.from?.pathname || '/';
+        navigate(from, { replace: true });
       } else {
-        setError('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+        show('البريد الإلكتروني أو كلمة المرور غير صحيحة', 'error');
       }
     } catch (err) {
-      setError('حدث خطأ ما. الرجاء المحاولة مرة أخرى');
+      show('حدث خطأ في الاتصال بالخادم', 'error');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -168,21 +173,12 @@ const Login = () => {
         transition={{ duration: 0.5 }}
       >
         <Logo>
-          <img src="/logo.png" alt="تراثي" />
+          <img src={logo} alt="تراثي" />
         </Logo>
         <Title>مرحباً بك</Title>
         <Subtitle>قم بتسجيل الدخول للوصول إلى لوحة التحكم</Subtitle>
 
         <Form onSubmit={handleSubmit}>
-          {error && (
-            <ErrorMessage
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              {error}
-            </ErrorMessage>
-          )}
-
           <FormGroup>
             <Input
               type="email"

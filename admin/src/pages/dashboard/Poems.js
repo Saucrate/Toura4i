@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,6 +14,9 @@ import Modal from '../../components/common/Modal';
 import { Form, FormGroup, Input, TextArea, Select } from '../../components/common/Form';
 import SearchAndFilter from '../../components/common/SearchAndFilter';
 import { useNotification } from '../../components/common/Notification';
+import poemService from '../../services/poemService';
+import Loading from '../../components/common/Loading';
+import poetService from '../../services/poetService';
 
 const Container = styled.div`
   display: flex;
@@ -806,44 +809,16 @@ const SearchBar = styled.div`
 const Poems = () => {
   const theme = useTheme();
   const { show } = useNotification();
-
-  const [poems, setPoems] = useState([
-    {
-      id: '1',
-      title: 'عنوان القصيدة',
-      content: `قصيدة جميلة تحكي عن الحب والحياة
-      وكيف أن الجمال يكمن في التفاصيل الصغيرة
-      وكيف أن الحب يجعل الحياة أجمل
-      وكيف أن الشعر يعبر عن المشاعر`,
-      poet: {
-        id: '1',
-        name: 'اسم الشاعر',
-        image: '/photo1.jpg'
-      },
-      audio: '/track1.mp3',
-      category: 'غزل',
-      date: '2024-03-15',
-      views: 1200,
-      likes: 350
-    }
-  ]);
-
+  const [loading, setLoading] = useState(false);
+  const [poems, setPoems] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingPoem, setEditingPoem] = useState(null);
   const [audioFile, setAudioFile] = useState(null);
   const [imageFile, setImageFile] = useState(null);
-  const [poets, setPoets] = useState([
-    {
-      id: '1',
-      name: 'اسم الشاعر',
-      image: '/poet1.jpg'
-    },
-    // Add more poets...
-  ]);
-  
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [poets, setPoets] = useState([]);
+  const [viewMode, setViewMode] = useState('grid');
   const [currentPoem, setCurrentPoem] = useState(null);
   const [isPlaying, setIsPlaying] = useState({});
   const [filters, setFilters] = useState({
@@ -855,6 +830,9 @@ const Poems = () => {
   const [isPoetSelectorOpen, setIsPoetSelectorOpen] = useState(false);
   const [selectedPoet, setSelectedPoet] = useState(null);
   const [poetSearch, setPoetSearch] = useState('');
+
+  const [imagePreview, setImagePreview] = useState(null);
+  const [audioPreview, setAudioPreview] = useState(null);
 
   const columns = [
     { key: 'title', label: 'العنوان' },
@@ -905,95 +883,210 @@ const Poems = () => {
     }
   ];
 
+  // Fetch poems on component mount
+  useEffect(() => {
+    fetchPoems();
+  }, []);
+
+  // Add useEffect for fetching poets
+  useEffect(() => {
+    const fetchPoets = async () => {
+      try {
+        const data = await poetService.getAllPoets();
+        console.log('Fetched poets for selector:', data); // Debug log
+        setPoets(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error fetching poets for selector:', error);
+        show('حدث خطأ أثناء جلب قائمة الشعراء', 'error');
+        setPoets([]);
+      }
+    };
+
+    fetchPoets();
+  }, []);
+
+  const fetchPoems = async () => {
+    try {
+      setLoading(true);
+      const response = await poemService.getAllPoems();
+      console.log('Fetched poems:', response); // Debug log
+      setPoems(response.poems || []); // Extract poems array from response
+    } catch (error) {
+      console.error('Error fetching poems:', error);
+      show('حدث خطأ أثناء جلب القصائد', 'error');
+      setPoems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    
+    if (!selectedPoet) {
+      show('الرجاء اختيار شاعر للقصيدة', 'error');
+      return;
+    }
+
+    const formData = new FormData();
     
     try {
-      const selectedPoetId = formData.get('poet');
-      const selectedPoet = poets.find(p => p.id === selectedPoetId);
+      // Add text fields
+      formData.append('title', e.target.title.value);
+      formData.append('content', e.target.content.value);
+      formData.append('category', e.target.category.value);
+      formData.append('poet', selectedPoet._id);
 
-      const newPoem = {
-        id: Date.now().toString(),
-        title: formData.get('title'),
-        poet: selectedPoet,
-        category: formData.get('category'),
-        description: formData.get('description'),
-        audio: audioFile,
-        image: imageFile,
-        date: new Date().toISOString().split('T')[0],
-        views: 0,
-        likes: 0
-      };
+      // Handle image file
+      if (imageFile) {
+        console.log('Appending image file:', imageFile);
+        formData.append('image', imageFile);
+      }
 
+      // Handle audio file
+      if (audioFile) {
+        console.log('Appending audio file:', audioFile);
+        formData.append('audio', audioFile);
+      }
+
+      // Log FormData contents
+      for (let pair of formData.entries()) {
+        console.log('FormData entry:', pair[0], pair[1]);
+      }
+
+      let response;
       if (editingPoem) {
-        setPoems(prev => prev.map(p => p.id === editingPoem.id ? newPoem : p));
+        response = await poemService.updatePoem(editingPoem._id, formData);
         show('تم تحديث القصيدة بنجاح', 'success');
       } else {
-        setPoems(prev => [...prev, newPoem]);
+        response = await poemService.createPoem(formData);
         show('تمت إضافة القصيدة بنجاح', 'success');
       }
 
+      console.log('Poem response:', response);
       setIsAddModalOpen(false);
       setEditingPoem(null);
       setAudioFile(null);
       setImageFile(null);
+      setSelectedPoet(null);
+      fetchPoems();
     } catch (error) {
+      console.error('Error creating/updating poem:', error);
       show('حدث خطأ أثناء حفظ القصيدة', 'error');
     }
   };
 
-  const handleDelete = (poem) => {
+  const handleDelete = async (poem) => {
     if (window.confirm('هل أنت متأكد من حذف هذه القصيدة؟')) {
-      setPoems(prev => prev.filter(p => p.id !== poem.id));
+      try {
+        await poemService.deletePoem(poem._id);
       show('تم حذف القصيدة بنجاح', 'success');
+        fetchPoems(); // Refresh the poems list
+      } catch (error) {
+        show('حدث خطأ أثناء حذف القصيدة', 'error');
+      }
     }
   };
 
   const handleEdit = (poem) => {
     setEditingPoem(poem);
+    setSelectedPoet(poem.poet);
     setIsAddModalOpen(true);
-  };
-
-  const handleAudioChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setAudioFile(URL.createObjectURL(file));
-    }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setImageFile(URL.createObjectURL(file));
+      setImageFile(file);
+      // Create a preview URL for the image
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const previewUrl = reader.result;
+        setImagePreview(previewUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAudioChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAudioFile(file);
+      // Create a preview URL for the audio
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const previewUrl = reader.result;
+        setAudioPreview(previewUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSearch = async (query) => {
+    try {
+      setLoading(true);
+      const results = await poemService.searchPoems(query);
+      setPoems(results);
+    } catch (error) {
+      show('حدث خطأ أثناء البحث', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategoryChange = async (category) => {
+    try {
+      setLoading(true);
+      const results = await poemService.getPoemsByCategory(category);
+      setPoems(results);
+    } catch (error) {
+      show('حدث خطأ أثناء تصفية القصائد', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePoetChange = async (poetId) => {
+    try {
+      setLoading(true);
+      const results = await poemService.getPoemsByPoet(poetId);
+      setPoems(results);
+    } catch (error) {
+      show('حدث خطأ أثناء تصفية القصائد', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
   const stats = [
     {
       label: 'إجمالي القصائد',
-      value: poems.length,
+      value: Array.isArray(poems) ? poems.length : 0,
       icon: <FiBook />,
       color: theme.colors.primary,
       trend: 12
     },
     {
       label: 'المشاهدات',
-      value: poems.reduce((sum, poem) => sum + poem.views, 0),
+      value: Array.isArray(poems) ? poems.reduce((sum, poem) => sum + (poem.views || 0), 0) : 0,
       icon: <FiEye />,
       color: theme.colors.success,
       trend: 8
     },
     {
       label: 'الإعجابات',
-      value: poems.reduce((sum, poem) => sum + poem.likes, 0),
+      value: Array.isArray(poems) ? poems.reduce((sum, poem) => {
+        // Eğer likes bir dizi ise uzunluğunu, değilse sayıyı al
+        const likesCount = Array.isArray(poem.likes) ? poem.likes.length : (typeof poem.likes === 'number' ? poem.likes : 0);
+        return sum + likesCount;
+      }, 0) : 0,
       icon: <FiHeart />,
       color: theme.colors.error,
       trend: -3
     },
     {
       label: 'التعليقات',
-      value: poems.reduce((sum, poem) => sum + (poem.comments?.length || 0), 0),
+      value: Array.isArray(poems) ? poems.reduce((sum, poem) => sum + (poem.comments?.length || 0), 0) : 0,
       icon: <FiMessageCircle />,
       color: theme.colors.warning,
       trend: 15
@@ -1130,6 +1223,10 @@ ${report.mostLiked
 
   return (
     <Container>
+      {loading ? (
+        <Loading fullScreen />
+      ) : (
+        <>
       <PageHeader>
         <div>
           <Title>القصائد</Title>
@@ -1327,7 +1424,10 @@ ${report.mostLiked
         <StyledForm onSubmit={handleSubmit}>
           <div className="form-header">
             <div className="upload-avatar">
-              <img src={imageFile || editingPoem?.image || '/photo1.jpg'} alt="صورة القصيدة" />
+                  <img 
+                    src={imagePreview || editingPoem?.image || '/photo1.jpg'} 
+                    alt="صورة القصيدة" 
+                  />
               <label className="upload-icon" htmlFor="image-upload">
                 <FiUpload />
               </label>
@@ -1423,15 +1523,19 @@ ${report.mostLiked
             </FormGroup>
           </div>
 
-          {(audioFile || editingPoem?.audio) && (
+              {(audioPreview || editingPoem?.audio) && (
             <AudioPreview
               controls
-              src={audioFile || editingPoem?.audio}
+                  src={audioPreview || editingPoem?.audio}
             />
           )}
 
           <div className="form-footer">
-            <Button type="button" variant="secondary" onClick={() => setIsAddModalOpen(false)}>
+                <Button type="button" variant="secondary" onClick={() => {
+                  setIsAddModalOpen(false);
+                  setImagePreview(null);
+                  setAudioPreview(null);
+                }}>
               إلغاء
             </Button>
             <Button type="submit" variant="primary">
@@ -1476,11 +1580,11 @@ ${report.mostLiked
                 <div className="stats">
                   <span>
                     <FiEye />
-                    {currentPoem.views} مشاهدة
+                    {currentPoem.views || 0} مشاهدة
                   </span>
                   <span>
                     <FiHeart />
-                    {currentPoem.likes} إعجاب
+                    {Array.isArray(currentPoem.likes) ? currentPoem.likes.length : (typeof currentPoem.likes === 'number' ? currentPoem.likes : 0)} إعجاب
                   </span>
                 </div>
               </div>
@@ -1528,6 +1632,8 @@ ${report.mostLiked
             ))}
         </PoetsGrid>
       </Modal>
+        </>
+      )}
     </Container>
   );
 };

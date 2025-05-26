@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,220 +7,175 @@ import {
   TouchableOpacity,
   Dimensions,
   ImageBackground,
+  ActivityIndicator,
+  RefreshControl,
+  Image,
+  TextInput,
+  Animated,
 } from 'react-native';
 import { AntDesign, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAudio } from '../context/AudioContext';
+import { useAuth } from '../context/AuthContext';
+import CustomAlert from '../components/CustomAlert';
+import api from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
 const categories = [
   {
-    id: '1',
-    title: 'الشعراء',
+    id: 'books',
+    title: 'الكتب',
     icon: 'book',
-    iconFamily: 'AntDesign',
+    iconFamily: 'Ionicons',
+    screen: 'Books',
+  },
+  {
+    id: 'historical',
+    title: 'الأماكن التاريخية',
+    icon: 'location',
+    iconFamily: 'Ionicons',
+    screen: 'HistoricalPlaces',
+  },
+  {
+    id: '1',
+    title: 'الأشخاص المميزون',
+    icon: 'people',
+    iconFamily: 'Ionicons',
     screen: 'Poets',
   },
   {
     id: '2',
-    title: 'الفنانون',
-    icon: 'mic',
-    iconFamily: 'Ionicons',
-    screen: 'Artists',
-  },
-  {
-    id: '3',
     title: 'القصائد',
-    icon: 'profile',
-    iconFamily: 'AntDesign',
+    icon: 'book',
+    iconFamily: 'Ionicons',
     screen: 'Poems',
   },
   {
-    id: '4',
+    id: '3',
     title: 'الألبومات',
-    icon: 'album',
-    iconFamily: 'MaterialIcons',
+    icon: 'albums',
+    iconFamily: 'Ionicons',
     screen: 'Albums',
   },
   {
-    id: '5',
-    title: 'المخطوطات',
-    icon: 'document-text',
-    iconFamily: 'Ionicons',
-    screen: 'Manuscripts',
-  },
-  {
-    id: '6',
-    title: 'الطلعات',
-    icon: 'people',
-    iconFamily: 'Ionicons',
-    screen: 'Events',
-  },
-  {
-    id: '7',
+    id: '4',
     title: 'الصور',
     icon: 'images',
     iconFamily: 'Ionicons',
     screen: 'Photos',
   },
   {
-    id: '8',
+    id: '5',
     title: 'الفيديوهات',
     icon: 'videocam',
     iconFamily: 'Ionicons',
     screen: 'Videos',
   },
-];
-
-// Featured poems and songs data
-const popularPoems = [
-  {
-    id: '1',
-    title: 'قصيدة البردة',
-    poet: 'البوصيري',
-    description: 'من أشهر قصائد المديح النبوي',
-    audio: require('../../assets/audio/burda.mp3'),
-    image: require('../../assets/images/burda.jpg'),
-  },
-  {
-    id: '10',
-    title: 'قصيدة الحكمة',
-    poet: 'الشيخ سيديا',
-    description: 'من روائع الشعر الموريتاني',
-    audio: require('../../assets/audio/ghina1.mp3'),
-    image: require('../../assets/images/poem1.jpg'),
-  },
-];
-
-const traditionalSongs = [
   {
     id: '6',
-    title: 'تبراع الشوق',
-    poet: 'سيدي ولد حبيب',
-    description: 'من أجمل التبراع الموريتاني',
-    audio: require('../../assets/audio/burda.mp3'),
-    image: require('../../assets/images/tebraa1.jpg'),
-  },
-  {
-    id: '8',
-    title: 'أغنية الوطن',
-    poet: 'عبد الله ولد محمد',
-    description: 'من روائع الغناء التقليدي',
-    audio: require('../../assets/audio/hamziyah.mp3'),
-    image: require('../../assets/images/ghina2.jpg'),
-  },
-];
-
-// Add this new data array after your existing data arrays
-const featuredPoets = [
-  {
-    id: '1',
-    name: 'البوصيري',
-    description: 'صاحب قصيدة البردة المشهورة',
-    image: require('../../assets/images/busiri.jpg'),
-    bio: 'شرف الدين محمد بن سعيد البوصيري (608-696هـ) شاعر مصري مشهور بقصائده في مدح النبي ﷺ',
-    poems: [
-      {
-        id: '1',
-        title: 'قصيدة البردة',
-        audio: require('../../assets/audio/burda.mp3'),
-        image: require('../../assets/images/burda.jpg'),
-      },
-      {
-        id: '3',
-        title: 'همزية البوصيري',
-        audio: require('../../assets/audio/hamziyah.mp3'),
-        image: require('../../assets/images/hamziyah.jpg'),
-      }
-    ]
-  },
-  {
-    id: '2',
-    name: 'الشيخ سيديا',
-    description: 'من أعلام الشعر الموريتاني',
-    image: require('../../assets/images/poem1.jpg'),
-    bio: 'من أشهر شعراء موريتانيا، له العديد من القصائد في مختلف المجالات',
-    poems: [
-      {
-        id: '10',
-        title: 'قصيدة الحكمة',
-        audio: require('../../assets/audio/ghina1.mp3'),
-        image: require('../../assets/images/poem1.jpg'),
-      }
-    ]
-  },
-];
-
-// Add new sections data
-const manuscripts = [
-  {
-    id: '1',
-    title: 'مخطوطة البردة',
-    author: 'البوصيري',
-    description: 'نسخة نادرة من القرن الثامن الهجري',
-    image: require('../../assets/images/manuscript1.jpg'),
-  },
-  {
-    id: '2',
-    title: 'مخطوطة التبراع',
-    author: 'سيدي ولد حبيب',
-    description: 'مجموعة من التبراع القديم',
-    image: require('../../assets/images/manuscript2.jpg'),
-  },
-];
-
-const events = [
-  {
-    id: '1',
-    title: 'طلعة نواكشوط',
-    date: '2023',
-    description: 'حفل تراثي في العاصمة',
-    image: require('../../assets/images/event1.jpg'),
-  },
-  {
-    id: '2',
-    title: 'أمسية تراثية',
-    date: '2023',
-    description: 'ليلة من التراث الأصيل',
-    image: require('../../assets/images/event2.jpg'),
-  },
-];
-
-const photos = [
-  {
-    id: '1',
-    title: 'صور تراثية',
-    description: 'مجموعة من الصور النادرة',
-    image: require('../../assets/images/photo1.jpg'),
-  },
-  {
-    id: '2',
-    title: 'ألبوم الذكريات',
-    description: 'لحظات من التاريخ',
-    image: require('../../assets/images/photo2.jpg'),
-  },
-];
-
-const videos = [
-  {
-    id: '1',
-    title: 'توثيق التراث',
-    description: 'سلسلة وثائقية عن التراث',
-    thumbnail: require('../../assets/images/video1.jpg'),
-    videoUrl: 'path_to_video',
-  },
-  {
-    id: '2',
-    title: 'حفلات تراثية',
-    description: 'تسجيلات لأهم الحفلات',
-    thumbnail: require('../../assets/images/video2.jpg'),
-    videoUrl: 'path_to_video',
-  },
+    title: 'التسجيلات الصوتية',
+    icon: 'musical-notes',
+    iconFamily: 'Ionicons',
+    screen: 'AudioRecordings',
+  }
 ];
 
 const HomeScreen = ({ navigation }) => {
   const { playTrack } = useAudio();
+  const { signed, user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [showAuthAlert, setShowAuthAlert] = useState(false);
+  const [targetScreen, setTargetScreen] = useState(null);
+  const [featuredPoets, setFeaturedPoets] = useState([]);
+  const [popularPoems, setPopularPoems] = useState([]);
+  const [recentAlbums, setRecentAlbums] = useState([]);
+  const [featuredPhotos, setFeaturedPhotos] = useState([]);
+  const [featuredVideos, setFeaturedVideos] = useState([]);
+  const [showLoginAlert, setShowLoginAlert] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchWidth = useRef(new Animated.Value(0)).current;
+  const searchOpacity = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const [searchText, setSearchText] = useState('');
+
+  const loadContent = async () => {
+    try {
+      setError(null);
+      const [
+        poetsResponse,
+        poemsResponse,
+        albumsResponse,
+        videosResponse,
+        photosResponse,
+      ] = await Promise.all([
+        api.get('/api/poets?featured=true'),
+        api.get('/api/poems?sort=popular'),
+        api.get('/api/albums?sort=recent'),
+        api.get('/api/videos?featured=true'),
+        api.get('/api/photos?featured=true'),
+      ]);
+
+      // API yanıtlarını kontrol et
+      console.log('Poets Response:', poetsResponse.data);
+      console.log('Poems Response:', poemsResponse.data);
+      console.log('Albums Response:', albumsResponse.data);
+      console.log('Videos Response:', videosResponse.data);
+      console.log('Photos Response:', photosResponse.data);
+
+      // Verileri kontrol ederek state'e kaydet
+      setFeaturedPoets(Array.isArray(poetsResponse.data) ? poetsResponse.data : []);
+      setPopularPoems(Array.isArray(poemsResponse.data) ? poemsResponse.data : []);
+      setRecentAlbums(Array.isArray(albumsResponse.data) ? albumsResponse.data : []);
+      setFeaturedPhotos(Array.isArray(photosResponse.data) ? photosResponse.data : []);
+      setFeaturedVideos(Array.isArray(videosResponse.data) ? videosResponse.data : []);
+
+    } catch (err) {
+      console.error('Error loading content:', err);
+      setError('حدث خطأ أثناء تحميل المحتوى. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadContent();
+    setRefreshing(false);
+  };
+
+  const loadNotifications = async () => {
+    if (!user) return;
+    try {
+      const response = await api.get('/api/users/notifications/unread');
+      setUnreadNotifications(response.data.count);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const loadUnreadMessages = async () => {
+    if (!user) return;
+    try {
+      const response = await api.get('/api/messages/unread-count');
+      setUnreadMessages(response.data.count);
+    } catch (error) {
+      setUnreadMessages(0);
+    }
+  };
+
+  useEffect(() => {
+    loadContent();
+    if (user) {
+      loadNotifications();
+      loadUnreadMessages();
+    }
+  }, [user]);
 
   const handlePlayTrack = (track) => {
     const formattedTrack = {
@@ -231,6 +186,32 @@ const HomeScreen = ({ navigation }) => {
       image: track.image,
     };
     playTrack(formattedTrack, [formattedTrack]);
+  };
+
+  const handleQuickActionPress = (screen) => {
+    if (!signed) {
+      setTargetScreen(screen);
+      setShowAuthAlert(true);
+    } else {
+      navigation.navigate(screen);
+    }
+  };
+
+  const handleAuthAlertConfirm = () => {
+    setShowAuthAlert(false);
+    navigation.navigate('Auth', { screen: 'Login' });
+  };
+
+  const handleAuthAlertCancel = () => {
+    setShowAuthAlert(false);
+  };
+
+  const handleAvatarPress = () => {
+    if (!user) {
+      setShowLoginAlert(true);
+    } else {
+      navigation.navigate('Profile');
+    }
   };
 
   const renderIcon = (iconName, family) => {
@@ -246,38 +227,233 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const renderContentSection = (title, data, renderItem, onSeeAll) => {
+    // Veri kontrolü ekle
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      console.log(`No data available for section: ${title}`);
+      return null;
+    }
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {onSeeAll && (
+            <TouchableOpacity onPress={onSeeAll}>
+              <Text style={styles.seeAll}>عرض الكل</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {data.map((item, index) => {
+            // Her bir öğe için null kontrolü
+            if (!item) {
+              console.log(`Invalid item at index ${index} in section ${title}`);
+              return null;
+            }
+            return renderItem(item);
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderFeaturedItem = ({ item }) => {
+    // Resim URL'sini kontrol et
+    const imageUrl = item.image ? item.image : 'https://via.placeholder.com/200';
+    console.log('Image URL:', imageUrl);
+
+    return (
+      <TouchableOpacity
+        style={styles.featuredItem}
+        onPress={() => {
+          // ... navigation logic
+        }}
+      >
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.featuredImage}
+        />
+        {/* ... rest of the component */}
+      </TouchableOpacity>
+    );
+  };
+
+  const handleSearchFocus = () => {
+    setIsSearchFocused(true);
+    Animated.parallel([
+      Animated.timing(searchWidth, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(searchOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const handleSearchBlur = () => {
+    setIsSearchFocused(false);
+    Animated.parallel([
+      Animated.timing(searchWidth, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(searchOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(rotateAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '90deg'],
+  });
+
+  const handleSearch = () => {
+    if (searchText.trim()) {
+      navigation.navigate('SearchResults', { query: searchText.trim() });
+      setSearchText('');
+      handleSearchBlur();
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#f2f2d3" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadContent}>
+          <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#000000', '#1a1a1a']} style={styles.gradient}>
-        <ScrollView style={styles.scrollView}>
+        <ScrollView 
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>تراثي</Text>
-            <Text style={styles.headerSubtitle}>التراث الموريتاني</Text>
+            <View style={styles.headerTop}>
+              <View style={styles.headerLeft}>
+                  <Image 
+                  source={require('../../assets/logo.png')} 
+                  style={styles.headerLogo} 
+                />
+              </View>
+              <View style={styles.headerRight}>
+                <View style={styles.searchContainer}>
+                  <Animated.View style={[
+                    styles.searchBar,
+                    {
+                      width: searchWidth.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, width * 0.3],
+                      }),
+                      opacity: searchOpacity,
+                    },
+                  ]}>
+                    <TextInput
+                      style={styles.searchInput}
+                      value={searchText}
+                      onChangeText={setSearchText}
+                      placeholder="بحث..."
+                      placeholderTextColor="rgba(242, 242, 211, 0.5)"
+                      onSubmitEditing={handleSearch}
+                      returnKeyType="search"
+                    />
+                  </Animated.View>
+                  <Animated.View style={[
+                    styles.searchIcon,
+                    { transform: [{ rotate: spin }] }
+                  ]}>
+                    <TouchableOpacity onPress={handleSearchFocus}>
+                      <Ionicons name="search" size={24} color="#f2f2d3" />
+                </TouchableOpacity>
+                  </Animated.View>
+              </View>
+                <TouchableOpacity 
+                  style={styles.headerRight}
+                  onPress={() => navigation.navigate('Notifications')}
+                >
+                  <Ionicons name="notifications" size={24} color="#f2f2d3" />
+                  {unreadNotifications > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Chat')}>
+                  <Ionicons name="chatbubble-outline" size={24} color="#f2f2d3" />
+                  {unreadMessages > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{unreadMessages > 99 ? '99+' : unreadMessages}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
+
+          <Text style={styles.mainTitle}>التراث الموريتاني</Text>
 
           {/* Quick Actions */}
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={styles.quickActionButton}
-              onPress={() => navigation.navigate('Favorites')}
+              onPress={handleAvatarPress}
             >
               <LinearGradient
                 colors={['rgba(242, 242, 211, 0.1)', 'rgba(242, 242, 211, 0.05)']}
                 style={styles.quickActionGradient}
               >
                 <View style={styles.quickActionIcon}>
-                  <Ionicons name="heart" size={28} color="#f2f2d3" />
+                  <Image 
+                    source={user?.avatar ? { uri: user.avatar } : require('../../assets/images/png-transparent-default-avatar-thumbnail.png')} 
+                    style={styles.quickActionAvatar} 
+                  />
                 </View>
                 <View style={styles.quickActionContent}>
-                  <Text style={styles.quickActionTitle}>المفضلة</Text>
-                  <Text style={styles.quickActionSubtitle}>مجموعتك الخاصة</Text>
+                  <Text style={styles.quickActionTitle}>{user?.name || 'زائر'}</Text>
+                  <Text style={styles.quickActionSubtitle}>الملف الشخصي</Text>
                 </View>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.quickActionButton}
-              onPress={() => navigation.navigate('Playlists')}
+              onPress={() => handleQuickActionPress('Playlists')}
             >
               <LinearGradient
                 colors={['rgba(242, 242, 211, 0.1)', 'rgba(242, 242, 211, 0.05)']}
@@ -287,8 +463,8 @@ const HomeScreen = ({ navigation }) => {
                   <MaterialIcons name="playlist-play" size={32} color="#f2f2d3" />
                 </View>
                 <View style={styles.quickActionContent}>
-                  <Text style={styles.quickActionTitle}>قوائم التشغيل</Text>
-                  <Text style={styles.quickActionSubtitle}>قوائمك المخصصة</Text>
+                  <Text style={styles.quickActionTitle}>المحفوظات</Text>
+                  <Text style={styles.quickActionSubtitle}>المحتوى المحفوظ</Text>
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -312,60 +488,47 @@ const HomeScreen = ({ navigation }) => {
           </View>
 
           {/* Featured Poets Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>الشعراء المميزون</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Poets')}>
-                <Text style={styles.seeAll}>عرض الكل</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {featuredPoets.map((poet) => (
+          {renderContentSection(
+            'الشعراء المميزون',
+            featuredPoets,
+            (poet) => (
                 <TouchableOpacity
                   key={poet.id}
                   style={styles.card}
                   onPress={() => navigation.navigate('PoetDetails', { poet })}
                 >
-                  <ImageBackground source={poet.image} style={styles.cardImage}>
+                <ImageBackground source={{ uri: poet.image }} style={styles.cardImage}>
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.8)']}
                       style={styles.cardGradient}
                     >
                       <Text style={styles.cardTitle}>{poet.name}</Text>
-                      <Text style={styles.cardDescription}>{poet.description}</Text>
-                      <Text style={styles.cardBio} numberOfLines={2}>
-                        {poet.bio}
-                      </Text>
+                    <Text style={styles.cardDescription}>{poet.bio}</Text>
                     </LinearGradient>
                   </ImageBackground>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+            ),
+            () => navigation.navigate('Poets')
+          )}
 
           {/* Popular Poems Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>القصائد المشهورة</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Poems')}>
-                <Text style={styles.seeAll}>عرض الكل</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {popularPoems.map((poem) => (
+          {renderContentSection(
+            'القصائد المشهورة',
+            popularPoems,
+            (poem) => (
                 <TouchableOpacity
                   key={poem.id}
                   style={styles.card}
                   onPress={() => navigation.navigate('PoemDetails', { poem })}
                 >
-                  <ImageBackground source={poem.image} style={styles.cardImage}>
+                <ImageBackground source={{ uri: poem.image }} style={styles.cardImage}>
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.8)']}
                       style={styles.cardGradient}
                     >
                       <Text style={styles.cardTitle}>{poem.title}</Text>
-                      <Text style={styles.cardPoet}>{poem.poet}</Text>
-                      <Text style={styles.cardDescription}>{poem.description}</Text>
+                    <Text style={styles.cardPoet}>{poem.poet?.name}</Text>
+                    <Text style={styles.cardDescription}>{poem.content?.substring(0, 100)}...</Text>
                       <TouchableOpacity
                         style={styles.playButton}
                         onPress={() => handlePlayTrack(poem)}
@@ -375,109 +538,111 @@ const HomeScreen = ({ navigation }) => {
                     </LinearGradient>
                   </ImageBackground>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+            ),
+            () => navigation.navigate('Poems')
+          )}
 
-          {/* Traditional Songs Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>الأغاني التقليدية</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Poems')}>
-                <Text style={styles.seeAll}>عرض الكل</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {traditionalSongs.map((song) => (
+          {/* Recent Albums Section */}
+          {renderContentSection(
+            'الألبومات الجديدة',
+            recentAlbums,
+            (album) => (
                 <TouchableOpacity
-                  key={song.id}
+                key={album.id}
                   style={styles.card}
-                  onPress={() => navigation.navigate('PoemDetails', { poem: song })}
+                onPress={() => navigation.navigate('AlbumDetails', { album })}
                 >
-                  <ImageBackground source={song.image} style={styles.cardImage}>
+                <ImageBackground source={{ uri: album.image }} style={styles.cardImage}>
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.8)']}
                       style={styles.cardGradient}
                     >
-                      <Text style={styles.cardTitle}>{song.title}</Text>
-                      <Text style={styles.cardPoet}>{song.poet}</Text>
-                      <Text style={styles.cardDescription}>{song.description}</Text>
-                      <TouchableOpacity
-                        style={styles.playButton}
-                        onPress={() => handlePlayTrack(song)}
-                      >
-                        <Ionicons name="play-circle" size={40} color="#f2f2d3" />
-                      </TouchableOpacity>
+                    <Text style={styles.cardTitle}>{album.title}</Text>
+                    <Text style={styles.cardPoet}>{album.artist?.name}</Text>
+                    <Text style={styles.cardDescription}>{album.description}</Text>
                     </LinearGradient>
                   </ImageBackground>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Manuscripts Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>المخطوطات</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Manuscripts')}>
-                <Text style={styles.seeAll}>عرض الكل</Text>
               </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {manuscripts.map((item) => (
+            ),
+            () => navigation.navigate('Albums')
+          )}
+
+          {/* Featured Photos Section */}
+          {renderContentSection(
+            'الصور المميزة',
+            featuredPhotos,
+            (photo) => (
                 <TouchableOpacity
-                  key={item.id}
+                key={photo.id}
                   style={styles.card}
-                  onPress={() => navigation.navigate('ManuscriptDetails', { manuscript: item })}
+                onPress={() => navigation.navigate('PhotoDetails', { photo })}
                 >
-                  <ImageBackground source={item.image} style={styles.cardImage}>
+                <ImageBackground source={{ uri: photo.image }} style={styles.cardImage}>
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.8)']}
                       style={styles.cardGradient}
                     >
-                      <Text style={styles.cardTitle}>{item.title}</Text>
-                      <Text style={styles.cardAuthor}>{item.author}</Text>
-                      <Text style={styles.cardDescription}>{item.description}</Text>
+                    <Text style={styles.cardTitle}>{photo.title}</Text>
+                    <Text style={styles.cardDescription}>{photo.description}</Text>
                     </LinearGradient>
                   </ImageBackground>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Events Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>الطلعات</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Events')}>
-                <Text style={styles.seeAll}>عرض الكل</Text>
               </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {events.map((item) => (
+            ),
+            () => navigation.navigate('Photos')
+          )}
+
+          {/* Featured Videos Section */}
+          {renderContentSection(
+            'الفيديوهات المميزة',
+            featuredVideos,
+            (video) => (
                 <TouchableOpacity
-                  key={item.id}
+                key={video.id}
                   style={styles.card}
-                  onPress={() => navigation.navigate('EventDetails', { event: item })}
+                onPress={() => navigation.navigate('VideoDetails', { video })}
                 >
-                  <ImageBackground source={item.image} style={styles.cardImage}>
+                <ImageBackground source={{ uri: video.thumbnail }} style={styles.cardImage}>
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.8)']}
                       style={styles.cardGradient}
                     >
-                      <Text style={styles.cardTitle}>{item.title}</Text>
-                      <Text style={styles.cardDate}>{item.date}</Text>
-                      <Text style={styles.cardDescription}>{item.description}</Text>
+                    <Text style={styles.cardTitle}>{video.title}</Text>
+                    <Text style={styles.cardDescription}>{video.description}</Text>
+                    <TouchableOpacity style={styles.playButton}>
+                      <Ionicons name="play-circle" size={40} color="#f2f2d3" />
+                    </TouchableOpacity>
                     </LinearGradient>
                   </ImageBackground>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+            ),
+            () => navigation.navigate('Videos')
+          )}
 
-          {/* Photos and Videos sections follow the same pattern */}
         </ScrollView>
       </LinearGradient>
+
+      <CustomAlert
+        visible={showAuthAlert}
+        title="تسجيل الدخول مطلوب"
+        message="يجب تسجيل الدخول للوصول إلى هذه الميزة. هل تريد تسجيل الدخول الآن؟"
+        type="warning"
+        onConfirm={handleAuthAlertConfirm}
+        onCancel={handleAuthAlertCancel}
+      />
+
+      <CustomAlert
+        visible={showLoginAlert}
+        title="تسجيل الدخول"
+        message="يجب تسجيل الدخول للوصول إلى الملف الشخصي"
+        confirmText="تسجيل الدخول"
+        cancelText="إلغاء"
+        type="info"
+        onConfirm={() => {
+          setShowLoginAlert(false);
+          navigation.navigate('Auth', { screen: 'Login' });
+        }}
+        onCancel={() => setShowLoginAlert(false)}
+      />
     </View>
   );
 };
@@ -490,16 +655,71 @@ const styles = StyleSheet.create({
   gradient: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    padding: 20,
+  },
+  errorText: {
+    color: '#f2f2d3',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#f2f2d3',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  retryButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   header: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 80,
     alignItems: 'center',
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 8,
+    height: 100,
+  },
+  headerLeft: {
+    width: 100,
+    height: 100,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
   headerTitle: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#f2f2d3',
-    marginBottom: 8,
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 18,
@@ -553,7 +773,7 @@ const styles = StyleSheet.create({
   },
   quickActionTitle: {
     color: '#f2f2d3',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 4,
     textAlign: 'right',
@@ -643,23 +863,87 @@ const styles = StyleSheet.create({
     top: 15,
     right: 15,
   },
-  cardBio: {
-    color: '#f2f2d3',
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 5,
+  featuredItem: {
+    width: width * 0.8,
+    height: height * 0.25,
+    marginLeft: 20,
+    borderRadius: 15,
+    overflow: 'hidden',
   },
-  cardDate: {
+  featuredImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  quickActionAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#ff3b30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  searchBar: {
+    height: 36,
+    backgroundColor: 'rgba(242, 242, 211, 0.1)',
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(242, 242, 211, 0.2)',
+  },
+  searchInput: {
+    flex: 1,
     color: '#f2f2d3',
     fontSize: 14,
-    opacity: 0.8,
-    marginBottom: 5,
+    textAlign: 'right',
   },
-  cardAuthor: {
+  searchIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(242, 242, 211, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(242, 242, 211, 0.2)',
+  },
+  mainTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
     color: '#f2f2d3',
-    fontSize: 16,
-    opacity: 0.8,
-    marginBottom: 5,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 20,
   },
 });
 
